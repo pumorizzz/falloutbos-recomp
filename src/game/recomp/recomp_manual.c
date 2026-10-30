@@ -81,6 +81,55 @@ void sub_000A4E60(void)
     g_esp += 4;                                  /* ret */
 }
 
+/* ---------------------------------------------------------------------------
+ * XAPI media check, sub_00096848 (called directly from 0x0009677E).
+ *
+ * Two stages:
+ *   1. MODE SENSE(10) page 0x3E, the DVD authentication page. The kernel
+ *      bridge already answers it as authenticated; this stage passes.
+ *   2. Only when the XBE certificate is longer than 0x1D8 bytes and bit 0 of
+ *      [cert+0x1D8] is set: READ DVD STRUCTURE of the Xbox security sector
+ *      (CDB AD 00 FF 02 FD FF FE 00 06 64 00 C0, 0x664 bytes), validated by
+ *      sub_00096791, five attempts. There is no disc to read it from, so it
+ *      fails five times and the title exits to the dashboard through
+ *      XLaunchNewImage(NULL) / HalReturnToFirmware(2).
+ *
+ * Some disc revisions carry that certificate bit, some do not; a revision
+ * without it boots without ever reaching stage 2. Clearing the bit makes this
+ * one take the same path: stage 1, then STATUS_SUCCESS.
+ *
+ * Done by data rather than by overriding the function: the call is direct,
+ * so it does not go through recomp_lookup_manual, and a second definition of
+ * sub_00096848 would collide with the generated one. Run once, from the first
+ * lookup -- the first indirect call (PsCreateSystemThreadEx) comes long before
+ * the check.
+ * ------------------------------------------------------------------------- */
+static void fbos_skip_dvd_security_sector(void)
+{
+    static volatile int done;
+    uint32_t cert, size, flags;
+
+    if (done)
+        return;
+    done = 1;
+
+    cert = MEM32(0x00010118u);                   /* XBE header: certificate VA */
+    if (!cert)
+        return;
+    size = MEM32(cert);                          /* certificate size */
+    if (size <= 0x1D8u)
+        return;                                  /* no such field: stage 2 never runs */
+
+    flags = MEM32(cert + 0x1D8u);
+    if (flags & 1u) {
+        MEM32(cert + 0x1D8u) = flags & ~1u;
+        fprintf(stderr, "[MEDIA] XBE certificate requests the DVD security-sector "
+                        "check (size 0x%X, [+0x1D8]=0x%08X); cleared, no disc to read\n",
+                size, flags);
+        fflush(stderr);
+    }
+}
+
 /* ── Manual function overrides ─────────────────────────────── */
 
 /*
@@ -119,6 +168,8 @@ void sub_000A4E60(void)
  */
 recomp_func_t recomp_lookup_manual(uint32_t xbox_va)
 {
+    fbos_skip_dvd_security_sector();             /* once; before the media check */
+
     /*
      * TODO: Add your overrides here. Examples:
      *
