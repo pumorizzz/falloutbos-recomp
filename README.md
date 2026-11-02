@@ -155,6 +155,7 @@ install. After installing anything, open a new terminal so PATH picks it up.
 | `RECOMP_KEYBOARD=1` | keyboard as player 1 (see Getting Started) |
 | `RECOMP_PAD_SCRIPT="ms:button,..."` | scripted presses for headless runs, e.g. `25000:start,35000:a` |
 | `RECOMP_USB_STATS=1` | controller transfer counts every few seconds |
+| `RECOMP_GPU_RASTER=1` \| `warp` \| `compare` | rasterise on the GPU (Direct3D 11) instead of the CPU: `1` a hardware adapter (WARP if none), `warp` the WARP software adapter, `compare` both paths draw and each flip prints how far the GPU differs from the software result. Off by default; needs `RECOMP_PB_EXEC=1` |
 | `RECOMP_RASTER_THREADS=N` | rasteriser worker threads (default: logical cores - 4). On a 6-core/12-thread CPU, 10 gave about 19 fps against 17; 12 starves the game and drops to 9 |
 | `FBOS_PROFILE=<start>,<secs>` | sample every thread for `<secs>` seconds starting at `<start>`, print the top functions per thread |
 
@@ -200,6 +201,7 @@ Found by this port, each on its own branch in xboxrecomp:
 | `perf/raster-batch-rows` ([#228](https://github.com/sp00nznet/xboxrecomp/pull/228)) | rasterise a draw's triangles together on the worker pool: 5.5 → 15 fps in Carbon |
 | `perf/nv2a-quiet-poll` ([#230](https://github.com/sp00nznet/xboxrecomp/pull/230)) | no stderr line per pushbuffer kick under `RECOMP_PB_EXEC`: menus 20-22 → 25-28 fps |
 | `perf/raster-pipeline` ([#231](https://github.com/sp00nznet/xboxrecomp/pull/231), on #228) | batches drawn by the workers while the executor decodes the next: 15.5 → 17.4 fps in Carbon |
+| `gpu-rastr` (local, on `work/falloutbos`) | `RECOMP_GPU_RASTER`: a D3D11 render back end — triangles the executor transformed and clipped, rasterised on the GPU with depth, stencil and the register combiners in one ubershader, colour surfaces written back to guest RAM at every executor sync |
 | community PR #186 | `pushfd`/`popfd`/`cpuid` lifted as the hardware does them. Until it lands, `recomp_manual.c` overrides the one function that needs it |
 
 ## License

@@ -7,10 +7,16 @@
     fences and reports would need the 0x400B10 latch modelled in the default
     segment scan: removing KickOff's flush wait (tried, reverted) let the
     title run ahead into `sub_000AB760`, which waits on that latch for ever.
-  - The pixel loop itself (combiners per pixel, no SIMD), or a hardware
-    back end.
+  - The pixel loop itself (combiners per pixel, no SIMD).
   - On a busy host the NV2A polling thread's `Sleep(0)` loses its core, and
     every kickoff waits a time slice; fps then halves.
+- GPU rasterisation (`RECOMP_GPU_RASTER`, toolkit branch `gpu-rastr`): the
+  executor's triangles drawn on D3D11, written back to guest RAM at every
+  sync. Carbon, RTX 3080 Ti: software path 17.7 fps, GPU path 45-46 fps.
+  The writeback is the cost now: per 10 s about 6,170 writebacks (3.6 GB)
+  and 1.8 s stalled on readback. Next: a surface cache that skips the writeback of surfaces
+  nothing reads back (lazy readback, render-to-texture on the GPU), then the
+  vertex programs on the GPU.
 - A camera fault seen once in Carbon (docs/images/known-camera-wedge.png): a
   giant wedge fills the screen while the minimap is unchanged. Not reproduced
   since; catch it with a frame trace.

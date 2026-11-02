@@ -40,6 +40,7 @@
 #include "../kernel/kernel.h"
 #include "../kernel/xbox_memory_layout.h"
 #include "../usb/ohci.h"
+#include "nv2a_gpu_d3d11.h"
 
 /* RECOMP_TLS is required: the runtime defines these thread-local, and a plain
  * extern resolves to the image's TLS template rather than this thread's copy,
@@ -446,6 +447,11 @@ int main(int argc, char **argv)
     xbox_kernel_bridge_init();
 
     g_esp = XBOX_STACK_TOP;
+
+    /* GPU rasterisation, opt-in with RECOMP_GPU_RASTER (and RECOMP_PB_EXEC):
+     * the D3D11 device is created here, before the title submits anything,
+     * and from then on its context is used only by the NV2A poll thread. */
+    nv2a_gpu_d3d11_install();
 
     /* The GPU fence D3D waits on. sub_000AB9E0 spins until the GPU has
      * consumed the pushbuffer up to what was submitted:
