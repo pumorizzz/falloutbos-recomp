@@ -29,9 +29,8 @@ indirect calls in a 270 s scripted run.
 
 Not yet good: the software rasteriser runs the level at about 17 fps (5 before
 xboxrecomp [#228](https://github.com/sp00nznet/xboxrecomp/pull/228), 15 after
-it, 17 with [#231](https://github.com/sp00nznet/xboxrecomp/pull/231)), the Bink
-videos show scattered block artifacts, and no one has played past the opening
-dialogue yet.
+it, 17 with [#231](https://github.com/sp00nznet/xboxrecomp/pull/231)), and no one
+has played past the opening dialogue yet.
 
 ![Fallout: Brotherhood of Steel (Xbox) recompiled, in Carbon](docs/images/carbon.png)
 
@@ -49,7 +48,7 @@ pushbuffer drew into. The level shot was reached headless with a scripted pad.*
 | D3D device + display mode | done: 640x480 X8R8G8B8 |
 | DirectSound / APU | done: the title starts the APU itself, streams create |
 | Async file streaming | done: needs deferred I/O APCs (see [docs/boot.md](docs/boot.md)) |
-| Bink FMV | plays: Interplay logo, intro; block artifacts in motion |
+| Bink FMV | plays: Interplay logo, intro, menu background |
 | Main menu | done |
 | Controller | done: the title's own USB stack enumerates the modelled pad |
 | Menus to gameplay | done: character select, difficulty, chapter intro, Carbon |

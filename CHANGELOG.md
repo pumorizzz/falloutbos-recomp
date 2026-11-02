@@ -14,6 +14,13 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
 - `RECOMP_AC97_READY` on by default, so DirectSound initialises.
 - Deferred file I/O APCs turned on (needs xboxrecomp `fix/io-apc-delivery`).
 - Native override of Bink's MMX probe `sub_000A4E60` (until xboxrecomp #186).
+
+### Fixed
+- Bink video block artifacts (scattered white and coloured blocks in the menu
+  background and the intro). The lifter turned `movsx ebp, bp` into a
+  zero-extension; Bink's inverse DCT (`0x000CD7BC`) then read every negative
+  row-6 coefficient as a large positive one. Fixed in xboxrecomp's lifter
+  (`gpu-rastr`); run `./regen.sh` to pick it up.
 - Seeds: `0x00095408` (main thread entry), `0x000D845C` (XPP table entry).
 - `docs/boot.md`: each wall on the way to the menu and how it was found.
 - Controller: `RECOMP_USB` on by default, and the window pages that alias the

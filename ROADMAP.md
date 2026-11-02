@@ -25,11 +25,6 @@
   giant wedge fills the screen while the minimap is unchanged. Not reproduced
   since; catch it with a frame trace.
 - Upstream the image-aliasing claim into xboxrecomp's contiguous allocator.
-- Bink block artifacts (the main-menu video: white and coloured 4x4-8x8
-  blocks). Identical with and without `RECOMP_GPU_RASTER`, so in the decode,
-  not the renderer; the frames reach the GPU as YUY2 textures. Ruled out: threading (same with RECOMP_GUEST_LOCK=1)
-  and the MMX helpers (tests/mmx_integer passes). Next: decode one .bik frame
-  with ffmpeg as the reference and diff the decoder's output buffer.
 - Get the three toolkit changes merged and pin the toolkit version; then delete
   the `sub_000A4E60` override.
 
