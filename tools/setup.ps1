@@ -13,8 +13,10 @@ $ErrorActionPreference = 'Stop'
 $Root    = Split-Path -Parent $PSScriptRoot
 $Log     = Join-Path $Root 'setup.log'
 $Toolkit = Join-Path $Root 'deps\xboxrecomp'
-# The toolkit branch with this port's fixes; main once xboxrecomp #226-#228 merge.
-$ToolkitRef = 'work/falloutbos'
+# The toolkit fork and branch with this port's fixes: work/falloutbos plus the
+# D3D11 back end and the movsx lifter fix (Bink blocks), none of them upstream.
+$ToolkitUrl = 'https://github.com/pumorizzz/xboxrecomp'
+$ToolkitRef = 'gpu-rastr'
 Set-Location $Root
 "=== setup $(Get-Date -Format s) ===" | Out-File $Log -Append -Encoding utf8
 
@@ -66,7 +68,7 @@ if (-not (Test-Path $bash)) { Fail "Git's bash.exe was not found next to git; re
 
 # ---- 2. toolkit ----------------------------------------------------------------
 if (-not (Test-Path (Join-Path $Toolkit '.git'))) {
-    Run "fetching the xboxrecomp toolkit ($ToolkitRef)" { git clone --branch $ToolkitRef https://github.com/sp00nznet/xboxrecomp $Toolkit }
+    Run "fetching the xboxrecomp toolkit ($ToolkitRef)" { git clone --branch $ToolkitRef $ToolkitUrl $Toolkit }
 } else { Say "Toolkit already present: $Toolkit" }
 
 # ---- 3. your disc --------------------------------------------------------------

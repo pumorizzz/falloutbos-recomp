@@ -96,13 +96,14 @@ Use `py -3`, not `python`: the Microsoft Store alias for `python` is not a real
 install. After installing anything, open a new terminal so PATH picks it up.
 
 1. Get this repo and the toolkit. The port needs toolkit changes still in
-   review (see [Toolkit changes](#toolkit-changes)); `work/falloutbos` has them
-   all:
+   review (see [Toolkit changes](#toolkit-changes)); `gpu-rastr` in
+   [pumorizzz/xboxrecomp](https://github.com/pumorizzz/xboxrecomp) has them all,
+   plus the D3D11 back end and the lifter fix for the Bink blocks:
 
    ```bash
    git clone https://github.com/sp00nznet/falloutbos-recomp falloutbos
    cd falloutbos
-   git clone --branch work/falloutbos https://github.com/sp00nznet/xboxrecomp deps/xboxrecomp
+   git clone --branch gpu-rastr https://github.com/pumorizzz/xboxrecomp deps/xboxrecomp
    ```
 
 2. Unpack your disc into `game/`:
@@ -208,7 +209,7 @@ Found by this port, each on its own branch in xboxrecomp:
 | `perf/raster-batch-rows` ([#228](https://github.com/sp00nznet/xboxrecomp/pull/228)) | rasterise a draw's triangles together on the worker pool: 5.5 → 15 fps in Carbon |
 | `perf/nv2a-quiet-poll` ([#230](https://github.com/sp00nznet/xboxrecomp/pull/230)) | no stderr line per pushbuffer kick under `RECOMP_PB_EXEC`: menus 20-22 → 25-28 fps |
 | `perf/raster-pipeline` ([#231](https://github.com/sp00nznet/xboxrecomp/pull/231), on #228) | batches drawn by the workers while the executor decodes the next: 15.5 → 17.4 fps in Carbon |
-| `gpu-rastr` (local, on `work/falloutbos`) | `RECOMP_GPU_RASTER`: a D3D11 render back end — triangles the executor transformed and clipped, rasterised on the GPU with depth, stencil and the register combiners in one ubershader, colour surfaces written back to guest RAM at every executor sync |
+| `gpu-rastr` ([pumorizzz/xboxrecomp](https://github.com/pumorizzz/xboxrecomp), on `work/falloutbos`) | `RECOMP_GPU_RASTER`: a D3D11 render back end — triangles the executor transformed and clipped, rasterised on the GPU with depth, stencil and the register combiners in one ubershader, colour surfaces written back to guest RAM at every executor sync |
 | community PR #186 | `pushfd`/`popfd`/`cpuid` lifted as the hardware does them. Until it lands, `recomp_manual.c` overrides the one function that needs it |
 
 ## License
