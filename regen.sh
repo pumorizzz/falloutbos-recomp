@@ -90,6 +90,9 @@ if [ $status -ne 0 ]; then
     tail -25 "$FBOS/build/recomp.log" >&2
     exit $status
 fi
+# recomp leaves unchanged files alone, so their times say nothing; this one
+# marks when gen/ last matched the toolkit (src/game/CMakeLists.txt).
+touch "$FBOS/src/game/recomp/gen/.regen_stamp"
 
 echo "==> done. Now: cmake -S . -B build-msvc -A x64 -DXBOXRECOMP_DIR=$RECOMP"
 echo "             cmake --build build-msvc --config Release"

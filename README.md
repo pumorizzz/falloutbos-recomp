@@ -187,6 +187,11 @@ it at a toolkit checkout other than `../xboxrecomp`. Entry tracing for
 bring-up: list addresses in `config/trace_functions.json` and run
 `TRACE_FUNCS=config/trace_functions.json ./regen.sh`.
 
+`cmake --build` re-runs `./regen.sh` on its own when the toolkit's codegen
+(`tools/recomp`, `tools/func_id`, `tools/abi_analysis`) is newer than the
+last regen (`src/game/recomp/gen/.regen_stamp`), so a lifter fix pulled with
+the toolkit reaches the game. `-DFBOS_AUTO_REGEN=OFF` turns that off.
+
 Day-to-day builds go through [recomp-netlab](https://github.com/sp00nznet/recomp-netlab):
 `netlab build falloutbos-recomp` (recipe `projects/falloutbos-recomp.env`).
 The farm never sends `game/` or the disc image.
