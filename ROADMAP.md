@@ -12,9 +12,13 @@
     every kickoff waits a time slice; fps then halves.
 - GPU rasterisation (`RECOMP_GPU_RASTER`, toolkit branch `gpu-rastr`): the
   executor's triangles drawn on D3D11, written back to guest RAM at every
-  sync. Carbon, RTX 3080 Ti: software path 17.7 fps, GPU path 45-46 fps.
-  The writeback is the cost now: per 10 s about 6,170 writebacks (3.6 GB)
-  and 1.8 s stalled on readback. Next: a surface cache that skips the writeback of surfaces
+  sync. Carbon, RTX 3080 Ti: software path 18.6 fps, GPU path 66 fps (46
+  before render targets were sampled as textures and written back only for
+  the present). Left: one readback per flip, the presented frame, about 1,330
+  writebacks (1.7 GB) and 1.8 s of `Map` per 10 s; a one-flip-late readback
+  from a staging ring did not shorten it. Compare differs only in the
+  "camera wedge" frames, where the software rasteriser's float edge functions
+  lose triangles that reach millions of pixels past the near plane. Next: a surface cache that skips the writeback of surfaces
   nothing reads back (lazy readback, render-to-texture on the GPU), then the
   vertex programs on the GPU.
 - A camera fault seen once in Carbon (docs/images/known-camera-wedge.png): a
