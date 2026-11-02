@@ -74,7 +74,10 @@ Nothing from the game is downloaded or included.
 
 ### Quick start
 
-1. Download this repo (Code → Download ZIP, or clone it) and unpack it.
+1. Download the `gpu-rastr` branch of
+   [pumorizzz/falloutbos-recomp](https://github.com/pumorizzz/falloutbos-recomp/tree/gpu-rastr)
+   ([ZIP](https://github.com/pumorizzz/falloutbos-recomp/archive/refs/heads/gpu-rastr.zip),
+   or clone it) and unpack it.
 2. Double-click **`Setup.cmd`**. It checks for Python, Git, CMake and the
    Visual Studio C++ build tools, and **asks before installing** anything
    missing (with what, why and how big). It finds your disc image or asks for
@@ -101,7 +104,7 @@ install. After installing anything, open a new terminal so PATH picks it up.
    plus the D3D11 back end and the lifter fix for the Bink blocks:
 
    ```bash
-   git clone https://github.com/sp00nznet/falloutbos-recomp falloutbos
+   git clone --branch gpu-rastr https://github.com/pumorizzz/falloutbos-recomp falloutbos
    cd falloutbos
    git clone --branch gpu-rastr https://github.com/pumorizzz/xboxrecomp deps/xboxrecomp
    ```

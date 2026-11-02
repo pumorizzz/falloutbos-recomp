@@ -17,6 +17,7 @@ $Toolkit = Join-Path $Root 'deps\xboxrecomp'
 # D3D11 back end and the movsx lifter fix (Bink blocks), none of them upstream.
 $ToolkitUrl = 'https://github.com/pumorizzz/xboxrecomp'
 $ToolkitRef = 'gpu-rastr'
+$ToolkitUpdated = $false
 Set-Location $Root
 "=== setup $(Get-Date -Format s) ===" | Out-File $Log -Append -Encoding utf8
 
@@ -69,7 +70,25 @@ if (-not (Test-Path $bash)) { Fail "Git's bash.exe was not found next to git; re
 # ---- 2. toolkit ----------------------------------------------------------------
 if (-not (Test-Path (Join-Path $Toolkit '.git'))) {
     Run "fetching the xboxrecomp toolkit ($ToolkitRef)" { git clone --branch $ToolkitRef $ToolkitUrl $Toolkit }
-} else { Say "Toolkit already present: $Toolkit" }
+} else {
+    # An older checkout (sp00nznet's work/falloutbos, or this branch from
+    # before a fix) is moved up to the fork's branch -- but only by a
+    # fast-forward, so local commits and edits are never thrown away.
+    Run "checking the toolkit against $ToolkitRef" { git -C $Toolkit fetch $ToolkitUrl $ToolkitRef }
+    $tip = (git -C $Toolkit rev-parse FETCH_HEAD).Trim()
+    git -C $Toolkit merge-base --is-ancestor $tip HEAD
+    if ($LASTEXITCODE -eq 0) { Say "Toolkit already present and up to date: $Toolkit" }
+    else {
+        git -C $Toolkit merge-base --is-ancestor HEAD $tip
+        $ff = $LASTEXITCODE -eq 0
+        if ($ff -and -not (git -C $Toolkit status --porcelain --untracked-files=no)) {
+            Run "updating the toolkit to $ToolkitRef" { git -C $Toolkit checkout -B $ToolkitRef $tip }
+            $ToolkitUpdated = $true
+        } else {
+            Say "Toolkit in $Toolkit has local changes; left as it is. To take the fixes: git -C deps\xboxrecomp pull $ToolkitUrl $ToolkitRef"
+        }
+    }
+}
 
 # ---- 3. your disc --------------------------------------------------------------
 if (-not (Test-Path (Join-Path $Root 'game\default.xbe'))) {
@@ -88,7 +107,9 @@ if (-not (Test-Path (Join-Path $Root 'src\game\recomp\gen\recomp_funcs.h'))) {
 } else { Say "Generated C already present (delete src\game\recomp\gen to redo)" }
 
 # ---- 5. build ------------------------------------------------------------------
-if (-not (Test-Path (Join-Path $Root 'bin\fbos.exe'))) {
+# A toolkit update needs a rebuild; the build itself regenerates gen/ when the
+# toolkit's codegen changed (src/game/CMakeLists.txt).
+if ($ToolkitUpdated -or -not (Test-Path (Join-Path $Root 'bin\fbos.exe'))) {
     Run 'configuring the build' { cmake -S . -B build-msvc -A x64 "-DXBOXRECOMP_DIR=$Toolkit" }
     Run 'building (several minutes; your machine will be busy)' { cmake --build build-msvc --config Release }
 } else { Say "Already built: bin\fbos.exe" }
