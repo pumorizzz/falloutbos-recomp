@@ -11,21 +11,23 @@
   - On a busy host the NV2A polling thread's `Sleep(0)` loses its core, and
     every kickoff waits a time slice; fps then halves.
 - GPU rasterisation (`RECOMP_GPU_RASTER`, toolkit branch `gpu-rastr`): the
-  executor's triangles drawn on D3D11, written back to guest RAM at every
-  sync. Carbon, RTX 3080 Ti: software path 18.6 fps, GPU path 66 fps (46
-  before render targets were sampled as textures and written back only for
-  the present). Left: one readback per flip, the presented frame, about 1,330
-  writebacks (1.7 GB) and 1.8 s of `Map` per 10 s; a one-flip-late readback
-  from a staging ring did not shorten it. Compare differs only in the
-  "camera wedge" frames, where the software rasteriser's float edge functions
-  lose triangles that reach millions of pixels past the near plane. Next: a surface cache that skips the writeback of surfaces
-  nothing reads back (lazy readback, render-to-texture on the GPU), then the
-  vertex programs on the GPU.
+  executor's triangles drawn on D3D11 and presented from the GPU into the
+  framebuffer window (no readback per flip). Carbon, RTX 3080 Ti, with
+  `RECOMP_FPS_LIMIT=200`: software path 17.5 fps, GPU path 71-77 fps; readback
+  stall 0.07 s per 10 s (was 1.8 s). By Ruby and the bar the GPU path runs at
+  43-45 fps, CPU-bound. Compare differs only in the "camera wedge" frames,
+  where the software rasteriser's float edge functions lose triangles that
+  reach millions of pixels past the near plane. Not done: a scripted run
+  that opens and closes Ruby's dialog (the "talk" prompt depends on where the
+  run stops), the thin dark line that GPU frames sometimes draw from the
+  player across the screen. Next: the vertex programs on the GPU.
 - A camera fault seen once in Carbon (docs/images/known-camera-wedge.png): a
   giant wedge fills the screen while the minimap is unchanged. Not reproduced
   since; catch it with a frame trace.
 - Upstream the image-aliasing claim into xboxrecomp's contiguous allocator.
-- Bink block artifacts. Ruled out: threading (same with RECOMP_GUEST_LOCK=1)
+- Bink block artifacts (the main-menu video: white and coloured 4x4-8x8
+  blocks). Identical with and without `RECOMP_GPU_RASTER`, so in the decode,
+  not the renderer; the frames reach the GPU as YUY2 textures. Ruled out: threading (same with RECOMP_GUEST_LOCK=1)
   and the MMX helpers (tests/mmx_integer passes). Next: decode one .bik frame
   with ffmpeg as the reference and diff the decoder's output buffer.
 - Get the three toolkit changes merged and pin the toolkit version; then delete
