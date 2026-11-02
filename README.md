@@ -1,5 +1,15 @@
 # falloutbos-recomp
 
+> **Fork.** This is [pumorizzz/falloutbos-recomp](https://github.com/pumorizzz/falloutbos-recomp),
+> maintained by [pumorizzz](https://github.com/pumorizzz) and forked from
+> [sp00nznet/falloutbos-recomp](https://github.com/sp00nznet/falloutbos-recomp).
+> The original project and the xboxrecomp toolkit are by
+> [sp00nznet](https://github.com/sp00nznet). The fork's work is on the
+> `gpu-rastr` branch: the D3D11 render back end (`RECOMP_GPU_RASTER`), the
+> 60 fps cap and the fix for the Bink video blocks. It builds against the
+> toolkit fork [pumorizzz/xboxrecomp](https://github.com/pumorizzz/xboxrecomp)
+> (`gpu-rastr`).
+
 ![Fallout: Brotherhood of Steel recompiled: the main menu, then Nadia in Carbon](docs/images/hero.gif)
 
 *Recorded headless from `fbos.exe`: the scripted pad from `tools/boot_check.py`,
