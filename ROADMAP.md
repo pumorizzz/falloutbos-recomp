@@ -13,14 +13,17 @@
 - GPU rasterisation (`RECOMP_GPU_RASTER`, toolkit branch `gpu-rastr`): the
   executor's triangles drawn on D3D11 and presented from the GPU into the
   framebuffer window (no readback per flip). Carbon, RTX 3080 Ti, with
-  `RECOMP_FPS_LIMIT=200`: software path 17.5 fps, GPU path 71-77 fps; readback
-  stall 0.07 s per 10 s (was 1.8 s). By Ruby and the bar the GPU path runs at
-  43-45 fps, CPU-bound. Compare differs only in the "camera wedge" frames,
-  where the software rasteriser's float edge functions lose triangles that
-  reach millions of pixels past the near plane. Not done: a scripted run
-  that opens and closes Ruby's dialog (the "talk" prompt depends on where the
-  run stops), the thin dark line that GPU frames sometimes draw from the
-  player across the screen. Next: the vertex programs on the GPU.
+  `RECOMP_FPS_LIMIT=200`, same session A/B: Carbon spawn 77 -> 146 fps, by
+  Ruby and the bar 43 -> 98 fps (60 with the default cap), after the vertex
+  program interpreter stopped re-decoding every instruction per vertex and an
+  index list's repeated vertices stopped being transformed again. Pixels
+  outside SET_CLIP_MIN/MAX are no longer drawn on either path, which takes
+  off the needles and slabs that near-plane-clipped triangles fanned across
+  the screen by the bar. Compare differs only in the "camera wedge" frames.
+  Not done: an fps reading right after leaving Ruby's dialog with this build
+  (the scripted walk to Ruby is timed in flips and misses her once the game
+  runs faster; townspeople also block it), the stippled floor tiles. Next:
+  the vertex programs on the GPU.
 - A camera fault seen once in Carbon (docs/images/known-camera-wedge.png): a
   giant wedge fills the screen while the minimap is unchanged. Not reproduced
   since; catch it with a frame trace.
