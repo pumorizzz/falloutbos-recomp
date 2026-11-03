@@ -17,6 +17,13 @@ $Toolkit = Join-Path $Root 'deps\xboxrecomp'
 # D3D11 back end and the movsx lifter fix (Bink blocks), none of them upstream.
 $ToolkitUrl = 'https://github.com/pumorizzz/xboxrecomp'
 $ToolkitRef = 'gpu-rastr'
+# Tips the branch once had before its history was rewritten (e458191 did not
+# build). A clean checkout on one of them has nothing of its own to lose.
+$ToolkitRewritten = @(
+    'e458191d6492d7e5449646155c8378dd7773b5e9',
+    '539403e6e7243a52e36e0c8b90f029d3b3c4e71e',
+    'cbbf98c506cc372e58665f4e7cd5e96ede7a855a'
+)
 $ToolkitUpdated = $false
 Set-Location $Root
 "=== setup $(Get-Date -Format s) ===" | Out-File $Log -Append -Encoding utf8
@@ -81,6 +88,8 @@ if (-not (Test-Path (Join-Path $Toolkit '.git'))) {
     else {
         git -C $Toolkit merge-base --is-ancestor HEAD $tip
         $ff = $LASTEXITCODE -eq 0
+        $head = (git -C $Toolkit rev-parse HEAD).Trim()
+        if ($ToolkitRewritten -contains $head) { $ff = $true }
         if ($ff -and -not (git -C $Toolkit status --porcelain --untracked-files=no)) {
             Run "updating the toolkit to $ToolkitRef" { git -C $Toolkit checkout -B $ToolkitRef $tip }
             $ToolkitUpdated = $true
