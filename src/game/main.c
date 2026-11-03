@@ -222,7 +222,7 @@ static int prof_cmp(const void *a, const void *b)
 static DWORD WINAPI profiler(LPVOID arg)
 {
     const char *spec = (const char *)arg;
-    unsigned start = (unsigned)atoi(spec), secs = 10, i;
+    unsigned start = (unsigned)atoi(spec), secs = 10, i, n;
     const char *comma = strchr(spec, ',');
     DWORD me = GetCurrentThreadId(), pid = GetCurrentProcessId(), t0;
 
@@ -280,10 +280,17 @@ static DWORD WINAPI profiler(LPVOID arg)
         if (g_raw[i].n)
             prof_count(g_raw[i].tid, g_raw[i].rip, g_raw[i].n);
     qsort(g_prof, g_prof_used, sizeof(g_prof[0]), prof_cmp);
-    fprintf(stderr, "[PROF] %u samples, top functions:\n", g_prof_total);
-    for (i = 0; i < g_prof_used && i < 60; i++)
+    fprintf(stderr, "[PROF] %u samples, top functions (idle waits left out):\n",
+            g_prof_total);
+    /* Fifty-odd threads sit in a wait the whole time and would fill the
+     * list ahead of the one thread actually working. */
+    for (i = 0, n = 0; i < g_prof_used && n < 60; i++) {
+        if (strstr(g_prof[i].name, "WaitFor") || strstr(g_prof[i].name, "DelayExecution"))
+            continue;
         fprintf(stderr, "[PROF] %5.1f%%  %6u  %s\n",
                 100.0 * g_prof[i].n / g_prof_total, g_prof[i].n, g_prof[i].name);
+        n++;
+    }
     fflush(stderr);
     return 0;
 }
