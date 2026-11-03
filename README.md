@@ -99,6 +99,8 @@ Nothing from the game is downloaded or included.
    Z/X/C/V = A/B/X/Y, Enter = Start, Backspace = Back, 1/3 = triggers.
    F9 starts and stops recording what you do into `saves\pad_path.txt`; F10
    plays that recording back from where you stand, e.g. to repeat a route.
+   It draws on the GPU (Direct3D 11). For the CPU rasteriser, run it from a
+   console after `set RECOMP_GPU_RASTER=0`.
 
 ### Step by step
 
@@ -171,7 +173,7 @@ install. After installing anything, open a new terminal so PATH picks it up.
 | `RECOMP_PAD_SCRIPT="ms:button,..."` | scripted presses for headless runs, e.g. `25000:start,35000:a` |
 | `RECOMP_PAD_RECORD=<file>` | in the window, F9 records pad 1 into `<file>` (on/off), F10 plays it back from that moment; timed in flips. `Play.cmd` uses `saves\pad_path.txt`; a line `replay` in `RECOMP_PAD_LIVE` also plays it. `RECOMP_PAD_RECORD_FROM_START=1` records from the window opening on, `=play` replays such a recording from there |
 | `RECOMP_USB_STATS=1` | controller transfer counts every few seconds |
-| `RECOMP_GPU_RASTER=1` \| `warp` \| `compare` | rasterise on the GPU (Direct3D 11) instead of the CPU: `1` a hardware adapter (WARP if none), `warp` the WARP software adapter, `compare` both paths draw and each flip prints how far the GPU differs from the software result. Off by default; needs `RECOMP_PB_EXEC=1` |
+| `RECOMP_GPU_RASTER=1` \| `warp` \| `compare` | rasterise on the GPU (Direct3D 11) instead of the CPU: `1` a hardware adapter (WARP if none), `warp` the WARP software adapter, `compare` both paths draw and each flip prints how far the GPU differs from the software result, `0` the CPU. `Play.cmd` sets `1` unless it is already set; `fbos.exe` alone draws on the CPU. Needs `RECOMP_PB_EXEC=1`; without a D3D11 device it stays on the CPU |
 | `RECOMP_FPS_LIMIT=<hz>` | cap the frame rate at the flip, standing in for vblank: 60 by default, `0` turns it off. Without it menus and loading screens run at up to 1000 fps and menu input misbehaves |
 | `RECOMP_GPU_RASTER_PRESENT=0` | with `RECOMP_GPU_RASTER`, show the window through GDI from guest RAM instead of presenting from the GPU |
 | `RECOMP_GPU_RASTER_PRESENT_DUMP=prefix` | with `RECOMP_GPU_RASTER`, write every 30th shown frame (HUD included) as `prefixNNNNNN.bmp`; `RECOMP_GPU_RASTER_PRESENT_DUMP_EVERY=N` changes the interval |
