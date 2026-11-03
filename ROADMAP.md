@@ -22,9 +22,12 @@
   the screen by the bar. Compare differs only in the "camera wedge" frames.
   Not done: an fps reading right after leaving Ruby's dialog with this build
   (the scripted walk to Ruby is timed in flips and misses her once the game
-  runs faster; townspeople also block it). The stippled floor tiles were
-  batches whose first vertex was NaN: they left no dirty rectangle, so what
-  they drew never reached guest RAM. Next:
+  runs faster; townspeople also block it). Stippled floor tiles: seen in
+  some runs only, when the frame is resolved through guest RAM; a batch whose
+  first vertex was NaN left no dirty rectangle (fixed), not yet proven to be
+  the cause. Triangles are now also clipped at the SET_CLIP_MIN plane, so
+  none reaches 1e5 pixels off screen (the slabs seen by walls). With a
+  re-recorded walk, Ruby's dialog and the bar after it hold 59-61 fps. Next:
   the vertex programs on the GPU.
 - A camera fault seen once in Carbon (docs/images/known-camera-wedge.png): a
   giant wedge fills the screen while the minimap is unchanged. Not reproduced
