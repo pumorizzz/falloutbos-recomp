@@ -398,6 +398,13 @@ int main(int argc, char **argv)
      * host XInput pad drives it; RECOMP_PAD_SCRIPT drives it headless. */
     if (!getenv("RECOMP_USB"))
         _putenv_s("RECOMP_USB", "1");
+    /* The executor follows the ring as the DMA engine does. The segment scan
+     * between PUTs lost commands at the ring's wrap (a menu frame without its
+     * Bink background, a wedge of stray vertices in Carbon). The walk needs
+     * D3D's fence wait to be woken, which xbox_Nv2aFenceWakeEvent below
+     * provides; without it the title froze at the first long frame. */
+    if (!getenv("RECOMP_PB_WALK"))
+        _putenv_s("RECOMP_PB_WALK", "dma");
 
     /* .data is 5.4 MB virtual against 62 KB raw: the engine keeps its big
      * pools as zero-fill statics rather than heap. The default 64 MB map
@@ -468,13 +475,26 @@ int main(int argc, char **argv)
      *     mov ecx, [eax]
      *     mov eax, [esi+0x2c]    ;   what the title has submitted
      *
-     * Same layout as Half-Life 2's D3D (there at 0x0061EDE8). Nothing here
-     * executes the pushbuffer unless RECOMP_PB_EXEC is set, so everything
-     * submitted is complete and advancing the fence is honest. The chain is
-     * re-read and bounds-checked on every poll, so registering before the
-     * device exists is harmless. Without it boot spins forever right after
-     * the shaders load. */
+     * Same layout as Half-Life 2's D3D (there at 0x0061EDE8). Without
+     * RECOMP_PB_EXEC nothing executes the pushbuffer, so everything submitted
+     * is complete and advancing the fence is honest. The chain is re-read and
+     * bounds-checked on every poll, so registering before the device exists
+     * is harmless. Without it boot spins forever right after the shaders
+     * load. */
     xbox_Nv2aMirrorFence(0x000B5E58u, 0x2Cu, 0x30u);
+    /* With RECOMP_PB_EXEC the mirror ran ahead of the executor: D3D refilled
+     * dynamic vertex buffers and textures before they were drawn (single
+     * menu frames without their background or text, a stretched quest
+     * window). Naming the event BlockOnFence (sub_000AB9E0) sleeps on lets
+     * the executor own the fence instead:
+     *
+     *     mov dword [esi+0x1DC0], 0      ; the event's SignalState
+     *     ...                            ; NO_OPERATION 5 after the marker
+     *     lea esi, [esi+0x1DBC]
+     *     push 0 / 0 / 1 / 6 / esi
+     *     call [0xE01FC]                 ; KeWaitForSingleObject
+     */
+    xbox_Nv2aFenceWakeEvent(0x000B5E58u, 0x1DBCu);
 
     printf("\nStarting game at entry point 0x%08X...\n", FBOS_ENTRY_POINT);
     fflush(stdout);
