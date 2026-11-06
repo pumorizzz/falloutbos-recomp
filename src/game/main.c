@@ -405,6 +405,11 @@ int main(int argc, char **argv)
      * provides; without it the title froze at the first long frame. */
     if (!getenv("RECOMP_PB_WALK"))
         _putenv_s("RECOMP_PB_WALK", "dma");
+    /* Freed memory goes back into use. Without it the contiguous arena only
+     * grows: the Tutorial streams its rooms in and out, used up all 64 MB
+     * after about ten minutes, and crashed on the first allocation refused. */
+    if (!getenv("RECOMP_HEAP_RECLAIM"))
+        _putenv_s("RECOMP_HEAP_RECLAIM", "1");
 
     /* .data is 5.4 MB virtual against 62 KB raw: the engine keeps its big
      * pools as zero-fill statics rather than heap. The default 64 MB map
