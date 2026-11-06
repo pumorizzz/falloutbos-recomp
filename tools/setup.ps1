@@ -81,10 +81,20 @@ if (-not (Test-Path (Join-Path $Toolkit '.git'))) {
     # An older checkout (sp00nznet's work/falloutbos, or this branch from
     # before a fix) is moved up to the fork's branch -- but only by a
     # fast-forward, so local commits and edits are never thrown away.
-    Run "checking the toolkit against $ToolkitRef" { git -C $Toolkit fetch $ToolkitUrl $ToolkitRef }
-    $tip = (git -C $Toolkit rev-parse FETCH_HEAD).Trim()
-    git -C $Toolkit merge-base --is-ancestor $tip HEAD
-    if ($LASTEXITCODE -eq 0) { Say "Toolkit already present and up to date: $Toolkit" }
+    # Not through Run: with no network the toolkit already here is still
+    # good enough to build, so a failed fetch is said and set aside.
+    Say "--> checking the toolkit against $ToolkitRef"
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    git -C $Toolkit fetch $ToolkitUrl $ToolkitRef 2>&1 | ForEach-Object { "$_" } | Out-File $Log -Append -Encoding utf8
+    $fetched = $LASTEXITCODE -eq 0
+    $ErrorActionPreference = $prev
+    if ($fetched) {
+        $tip = (git -C $Toolkit rev-parse FETCH_HEAD).Trim()
+        git -C $Toolkit merge-base --is-ancestor $tip HEAD
+    }
+    if (-not $fetched) { Say "Could not reach $ToolkitUrl; using the toolkit already in $Toolkit as it is." }
+    elseif ($LASTEXITCODE -eq 0) { Say "Toolkit already present and up to date: $Toolkit" }
     else {
         git -C $Toolkit merge-base --is-ancestor HEAD $tip
         $ff = $LASTEXITCODE -eq 0
