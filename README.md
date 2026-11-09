@@ -165,7 +165,8 @@ the 4:3 bytes and leaves the Russian fixes, and the launcher's language switch
 changes only the XBE's strings, so either order works.
 
 `cmake --build` re-runs `./regen.sh` by itself when the toolkit's code generator is
-newer than the last regen (`-DFBOS_AUTO_REGEN=OFF` turns that off).
+newer than the last regen, and runs it on a fresh clone with no generated C yet
+when `game/default.xbe` is there (`-DFBOS_AUTO_REGEN=OFF` turns both off).
 
 ## Settings
 
