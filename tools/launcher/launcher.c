@@ -253,8 +253,8 @@ static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
         SendMessageW(s_lang, CB_ADDSTRING, 0, (LPARAM)L"English (original)");
         SendMessageW(s_lang, CB_ADDSTRING, 0,
                      (LPARAM)L"\x0420\x0443\x0441\x0441\x043a\x0438\x0439 (Russian)");
-        GetPrivateProfileStringA("launcher", "language", russian_present() ? "ru" : "en",
-                                 v, sizeof v, s_ini);
+        /* The original language until the player picks another. */
+        GetPrivateProfileStringA("launcher", "language", "en", v, sizeof v, s_ini);
         SendMessageW(s_lang, CB_SETCURSEL, strcmp(v, "ru") == 0 ? 1 : 0, 0);
         y += 60;
         make("STATIC", "Higher render resolution and MSAA cost GPU time;\n"
