@@ -108,6 +108,9 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
   and the inventory's labels came out cut to "..."; it now refuses and asks for
   `py -3 tools\russian.py apply`. English still starts. It also keeps a
   `RECOMP_GPU_RASTER` set beforehand, as `Play.cmd` does.
+- A fresh clone with no `src/game/recomp/gen/` built nothing and failed at the
+  link: CMake now runs `regen.sh` when `game/default.xbe` is there, and stops
+  with a plain message when it is not.
 
 ### Added (boot to Carbon, 2026-10-17 to 2026-10-18)
 - Project from the xboxrecomp new-game template and the Half-Life 2 port's

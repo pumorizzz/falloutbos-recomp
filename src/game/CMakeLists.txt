@@ -21,7 +21,13 @@ if(FBOS_AUTO_REGEN)
     list(FILTER _codegen_inputs EXCLUDE REGEX "/test_[^/]*$|/__pycache__/")
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${_codegen_inputs})
     set(_stale "")
-    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/recomp/gen/recomp_funcs.h"
+    set(_no_gen OFF)
+    if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/recomp/gen/recomp_funcs.h"
+       AND NOT EXISTS "${_gen_stamp}")
+        # A fresh clone: no generated C at all, and without it the link fails.
+        set(_stale "there is no generated C yet")
+        set(_no_gen ON)
+    elseif(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/recomp/gen/recomp_funcs.h"
        AND NOT EXISTS "${_gen_stamp}")
         set(_stale "it has no regen stamp yet")
     elseif(EXISTS "${_gen_stamp}")
@@ -33,7 +39,11 @@ if(FBOS_AUTO_REGEN)
         endforeach()
     endif()
     get_filename_component(_fbos_root "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
-    if(_stale AND NOT EXISTS "${_fbos_root}/game/default.xbe")
+    if(_no_gen AND NOT EXISTS "${_fbos_root}/game/default.xbe")
+        message(FATAL_ERROR "src/game/recomp/gen/ is empty and there is no game/default.xbe "
+            "to generate it from. Unpack your own disc into game/ (Setup.cmd does it), "
+            "then configure again.")
+    elseif(_stale AND NOT EXISTS "${_fbos_root}/game/default.xbe")
         message(WARNING "gen/ is stale (${_stale}), but there is no game/default.xbe to regenerate from")
     elseif(_stale)
         # Git's bash, as tools/setup.ps1 uses: a bare `bash` on PATH can be
