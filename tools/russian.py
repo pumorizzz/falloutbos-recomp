@@ -596,21 +596,35 @@ for _va, _modrm in ((0x00014C32, 'C9'), (0x00030560, 'D2'), (0x000306D0, 'D2'),
 # the runtime maps .rdata from the XBE at start-up, so these need no
 # regeneration.
 XBE_TEXT = [
-    (0x000E402C, 20, 'Required Level: %d', 'Нужен уровень: %d'),
+    (0x000E402C, 20, 'Required Level: %d', 'Нужен Уровень: %d'),
     (0x000E4040, 12, 'Cost: %d', 'Цена: %d'),
-    (0x000E4104, 12, 'Next Level:', 'До уровня:'),
+    (0x000E4104, 12, 'Next Level:', 'До Уровня:'),
     (0x000E4140, 8, 'Caps:', 'Крышки:'),
     (0x000E4148, 8, 'Armor:', 'Броня:'),
     (0x000E4158, 8, 'Health:', 'Жизнь:'),
-    (0x000E4160, 16, 'Skill Points:', 'Очки навыков:'),
+    (0x000E4160, 16, 'Skill Points:', 'Очки Навыков:'),
     (0x000E4170, 12, 'Experience:', 'Опыт:'),
-    (0x000E41AC, 12, 'No Quests', 'Нет заданий'),
-    (0x000E4208, 12, 'No Weapons', 'Нет оружия'),
-    (0x000E4214, 12, 'No Armor', 'Нет брони'),
-    (0x000E4220, 12, 'No Items', 'Нет вещей'),
+    (0x000E41AC, 12, 'No Quests', 'Нет Заданий'),
+    (0x000E4208, 12, 'No Weapons', 'Нет Оружия'),
+    (0x000E4214, 12, 'No Armor', 'Нет Брони'),
+    (0x000E4220, 12, 'No Items', 'Нет Вещей'),
     # the loading screen's caption (0x90444: gamefonta, 8-bit, at 280,396)
     (0x000E69DC, 12, 'Loading...', 'Загрузка...'),
 ]
+# Russian an earlier apply wrote there (before the labels took the original's
+# capitals): apply and revert take it as their own and rewrite it.
+XBE_TEXT_EARLIER = {
+    0x000E402C: 'Нужен уровень: %d', 0x000E4104: 'До уровня:', 0x000E4160: 'Очки навыков:',
+    0x000E41AC: 'Нет заданий', 0x000E4208: 'Нет оружия', 0x000E4214: 'Нет брони', 0x000E4220: 'Нет вещей',
+}
+
+
+def xbe_text_earlier(va, room):
+    s = XBE_TEXT_EARLIER.get(va)
+    if s is None:
+        return None
+    b = to_game(s).encode('latin-1')
+    return b + bytes(room - len(b))
 
 
 def xbe_text_sites():
@@ -644,7 +658,7 @@ def xbe_patch(xbe, to_new, dry=False):
         want, other = (new, orig) if to_new else (orig, new)
         if here == want:
             continue
-        if here != other:
+        if here != other and (is_code or here != xbe_text_earlier(va, len(orig))):
             print(f'russian: {xbe} at {va:#010x} is neither the original nor the patch; left as it is')
             return -1
     for (va, orig, new), is_code in sites:
@@ -746,7 +760,7 @@ def run(argv):
         d = open(xbe, 'rb').read()
         for va, orig, new in XBE_SITES + xbe_text_sites():
             o = xbe_offset(d, va)
-            if o is None or d[o:o + len(orig)] not in (orig, new):
+            if o is None or d[o:o + len(orig)] not in (orig, new, xbe_text_earlier(va, len(orig))):
                 print(f'russian: {xbe} at {va:#010x} is neither the original nor the patch; '
                       'not the image these fixes are for')
                 return 1
