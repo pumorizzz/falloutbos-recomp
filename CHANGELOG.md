@@ -26,7 +26,7 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
   `RECOMP_GPU_RASTER_MSAA`): targets and depth drawn N times larger with
   multisampling, read back to guest RAM averaged; `Play.cmd` uses 3x3 + 4x.
 - `bin\FalloutLauncher.exe` (`tools/launcher`): render resolution, picture
-  size, full screen and MSAA, then the game; remembered in `bin\launcher.ini`.
+  size, full screen, MSAA and the frame-rate limit (30/60/120/144/165/off), then the game; remembered in `bin\launcher.ini`.
 
 ### Fixed (GPU rendering and play)
 - Particles were not drawn at all (point sprites): steam, laser glow,

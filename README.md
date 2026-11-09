@@ -243,7 +243,7 @@ Nothing from the game is downloaded or included.
    first time, most of it the build. If it stops, it says why in one sentence
    and keeps the details in `setup.log`; running it again resumes.
 3. Double-click **`bin\FalloutLauncher.exe`** to pick the render resolution,
-   the picture size, full screen and anti-aliasing, then Play (the choice is
+   the picture size, full screen, anti-aliasing and the frame-rate limit, then Play (the choice is
    kept in `bin\launcher.ini`) -- or **`Play.cmd`** for the defaults. An
    XInput controller (Xbox 360/One pad) is
    player 1; the keyboard works too: WASD left stick, IJKL right stick,

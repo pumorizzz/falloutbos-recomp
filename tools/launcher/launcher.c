@@ -5,7 +5,8 @@
  * Everything it sets is an environment variable the game already reads
  * (README, "Usage"): RECOMP_GPU_RASTER_SCALE (the resolution the GPU renders
  * at, a multiple of the game's 640x480), RECOMP_FB_SIZE and
- * RECOMP_FB_FULLSCREEN (the picture), RECOMP_GPU_RASTER_MSAA. The choice is
+ * RECOMP_FB_FULLSCREEN (the picture), RECOMP_GPU_RASTER_MSAA, RECOMP_FPS_LIMIT
+ * (the frame-rate cap). The choice is
  * kept in bin\launcher.ini. Plain Win32, no resources: built with the game
  * (tools/launcher/CMakeLists.txt) into bin\.
  */
@@ -40,13 +41,24 @@ static const Choice k_aa[] = {
     { "MSAA 4x", "4" },
     { "MSAA 8x", "8" },
 };
+/* RECOMP_FPS_LIMIT: the flip waits for the next 1/n s, standing in for the
+ * TV's vblank. Unlimited runs menus and loading screens at hundreds of fps,
+ * and the menus then take a held button as several presses. */
+static const Choice k_fps[] = {
+    { "30 fps", "30" },
+    { "60 fps (as on the Xbox)", "60" },
+    { "120 fps", "120" },
+    { "144 fps", "144" },
+    { "165 fps", "165" },
+    { "Unlimited (menus may skip)", "0" },
+};
 #define COUNT(a) ((int)(sizeof(a) / sizeof((a)[0])))
 
-enum { ID_RENDER = 100, ID_OUTPUT, ID_AA, ID_FULL, ID_PLAY, ID_QUIT };
+enum { ID_RENDER = 100, ID_OUTPUT, ID_AA, ID_FPS, ID_FULL, ID_PLAY, ID_QUIT };
 
 static char s_root[MAX_PATH];           /* the repository: bin\.. */
 static char s_ini[MAX_PATH];
-static HWND s_render, s_output, s_aa, s_full;
+static HWND s_render, s_output, s_aa, s_fps, s_full;
 static HFONT s_font;
 
 static int find_value(const Choice *c, int n, const char *v, int fallback)
@@ -89,6 +101,7 @@ static void save(void)
     WritePrivateProfileStringA("launcher", "render", k_render[selected(s_render)].value, s_ini);
     WritePrivateProfileStringA("launcher", "output", k_output[selected(s_output)].value, s_ini);
     WritePrivateProfileStringA("launcher", "msaa", k_aa[selected(s_aa)].value, s_ini);
+    WritePrivateProfileStringA("launcher", "fps", k_fps[selected(s_fps)].value, s_ini);
     WritePrivateProfileStringA("launcher", "fullscreen",
         SendMessageA(s_full, BM_GETCHECK, 0, 0) == BST_CHECKED ? "1" : "0", s_ini);
 }
@@ -115,6 +128,7 @@ static int play(HWND owner)
     SetEnvironmentVariableA("RECOMP_GPU_RASTER_SCALE", k_render[selected(s_render)].value);
     SetEnvironmentVariableA("RECOMP_GPU_RASTER_MSAA", k_aa[selected(s_aa)].value);
     SetEnvironmentVariableA("RECOMP_FB_SIZE", k_output[selected(s_output)].value);
+    SetEnvironmentVariableA("RECOMP_FPS_LIMIT", k_fps[selected(s_fps)].value);
     SetEnvironmentVariableA("RECOMP_FB_FULLSCREEN",
         SendMessageA(s_full, BM_GETCHECK, 0, 0) == BST_CHECKED ? "1" : "0");
     memset(&si, 0, sizeof si);
@@ -156,6 +170,11 @@ static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
         GetPrivateProfileStringA("launcher", "msaa", "4", v, sizeof v, s_ini);
         s_aa = combo(h, ID_AA, 16, y + 20, k_aa, COUNT(k_aa),
                      find_value(k_aa, COUNT(k_aa), v, 2));
+        y += 56;
+        make("STATIC", "Frame rate limit:", 0, 16, y, 300, 18, h, 0);
+        GetPrivateProfileStringA("launcher", "fps", "60", v, sizeof v, s_ini);
+        s_fps = combo(h, ID_FPS, 16, y + 20, k_fps, COUNT(k_fps),
+                      find_value(k_fps, COUNT(k_fps), v, 1));
         y += 60;
         make("STATIC", "Higher render resolution and MSAA cost GPU time;\n"
                        "3x with MSAA 4x holds 60 fps on a fast card.",
@@ -188,7 +207,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 {
     WNDCLASSA wc;
     NONCLIENTMETRICSA ncm;
-    RECT r = { 0, 0, 332, 352 };
+    RECT r = { 0, 0, 332, 408 };
     MSG msg;
     HWND h;
     char *slash;
