@@ -103,6 +103,8 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
   English set there).
 - Three Russian lines (a ghoul's compliment, two Shop-Tec adverts) had a
   double space where the English has its ellipsis (byte 0x85); now "...".
+  "Français"/"Español" (a language menu the USA game does not show) are
+  translated, since the Russian fonts draw ç and ñ as "з" and "с".
 - The launcher set the Russian XBE strings into a `default.xbe` without
   `russian.py`'s code fixes (the disc unpacked again, the `.en`/`.ru` set left),
   and the inventory's labels came out cut to "..."; it now refuses and asks for
