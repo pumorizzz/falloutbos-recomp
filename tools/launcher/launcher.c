@@ -3,7 +3,7 @@
  * anti-aliasing, then start bin\fobos.exe the way Play.cmd does.
  *
  * Everything it sets is an environment variable the game already reads
- * (README, "Usage"): RECOMP_GPU_RASTER_SCALE (the resolution the GPU renders
+ * (README, "Settings"): RECOMP_GPU_RASTER_SCALE (the resolution the GPU renders
  * at, a multiple of the game's 640x480), RECOMP_FB_SIZE and
  * RECOMP_FB_FULLSCREEN (the picture), RECOMP_GPU_RASTER_MSAA, RECOMP_FPS_LIMIT
  * (the frame-rate cap). The language copies a set of the game's text files

@@ -38,7 +38,7 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
 - Launcher: Language, English (original) or Russian; before the start it
   copies the chosen set of `game\resx\*.sdb` (`.en`/`.ru`) into place and sets
   the XBE's strings in `game\default.xbe` from `default.xbe.en`/`.ru`, leaving
-  its code alone (copying the whole file undid a later `widescreen.py`).
+  its code alone.
 - README rewritten around the current build, with new 16:9 screenshots; the old
   4:3 screenshots and the GIF are gone.
 - `bin\FalloutLauncher.exe` (`tools/launcher`): render resolution, picture
@@ -77,8 +77,25 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
   targets back.
 - `Setup.cmd` without network keeps the toolkit already there and gives git's
   own reason.
+- `Setup.cmd` closed without a word when the Python package `capstone` was
+  missing, instead of offering to install it (and on any traceback from
+  `widescreen.py`): Windows PowerShell turned the redirected stderr into an
+  error under `Stop`.
+- The launcher copied the whole `default.xbe.en`/`.ru` over `default.xbe`,
+  putting back the XBE of the last `russian.py apply` and undoing a later
+  `widescreen.py apply` or `revert`; it now sets only the strings.
+- `[EXCEPTION]` lines for harmless first-chance exceptions (a driver naming a
+  thread) read as a crash, used up the reports a real one needs, and failed
+  `boot_check`'s "no faults".
+- `russian.py`: backups and rewritten files go through a temporary file and a
+  rename; a cut-off `sfx.clp.en` or `.sdb.en` is refused instead of written
+  back; `apply` refuses (no Pillow, another disc, fonts drawn already without
+  a backup) before writing anything, with exit status 1, and exits 0 when
+  nothing changes instead of redrawing the fonts every time.
+- `FBOS_PROFILE` sampled at most 64 threads and dropped the rest unsaid; now
+  256, and any past them are reported.
 
-### Added
+### Added (boot to Carbon, 2026-10-17 to 2026-10-18)
 - Project from the xboxrecomp new-game template and the Half-Life 2 port's
   layout: `regen.sh`, CMake, `main.c`, netlab recipe `falloutbos-recomp`.
 - Boots to the main menu with no arguments: Interplay logo, intro FMV, menu
@@ -88,7 +105,7 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
 - Deferred file I/O APCs turned on (needs xboxrecomp `fix/io-apc-delivery`).
 - Native override of Bink's MMX probe `sub_000A4E60` (until xboxrecomp #186).
 
-### Fixed
+### Fixed (boot to Carbon)
 - Bink video block artifacts (scattered white and coloured blocks in the menu
   background and the intro). The lifter turned `movsx ebp, bp` into a
   zero-extension; Bink's inverse DCT (`0x000CD7BC`) then read every negative
@@ -114,11 +131,9 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
   a baseline; netlab QA step.
 - Dialogue text confirmed drawing in Carbon (the empty box earlier was a
   capture mid fade-in).
-
-### Changed
-- The profiler samples about 35 times faster (raw addresses, named at the
-  end; thread list refreshed once a second).
-
-### Fixed
 - `regen.sh` resolves `TRACE_FUNCS` to an absolute path; the toolkit runs from
   its own directory and could not find a relative one.
+
+### Changed (boot to Carbon)
+- The profiler samples about 35 times faster (raw addresses, named at the
+  end; thread list refreshed once a second).

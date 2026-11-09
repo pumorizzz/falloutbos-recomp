@@ -33,20 +33,23 @@ Code fixes (XBE_SITES, ten 4-byte sites of game/default.xbe, each checked
 against its original bytes): the wide sprintf kept only the low byte of the
 format's own characters, and the game's 8-bit-to-wide copies widened with a
 sign. Regenerate and build after them (./regen.sh --disasm, cmake --build).
-widescreen.py's revert restores its 4:3 copy without them: run `apply` again.
+widescreen.py touches only its own sites, so they survive its apply and
+revert.
 
 `apply` keeps the originals: <name>.sdb.en, and sfx.clp.en (its size, header
-and table of contents); `revert` puts them and the XBE bytes back. It leaves
-both languages installed: every .sdb as .sdb.en and .sdb.ru, default.xbe as
-default.xbe.en and .ru (the same code, the XBE strings in English or
-Russian). bin/FalloutLauncher.exe copies one .sdb set into place by its
-Language choice and sets the bytes in which the two XBEs differ (the strings)
-in default.xbe, leaving its code alone; the fonts and the code fixes suit English as well. Exit status: 0 nothing to
-do, 3 files changed, 1 error.
+and table of contents); `revert` puts them and the XBE bytes back. Backups
+and rewritten files go through a temporary file and a rename, and a damaged
+sfx.clp.en is refused rather than written back. It leaves both languages
+installed: every .sdb as .sdb.en and .sdb.ru, default.xbe as default.xbe.en
+and .ru (the same code, the XBE strings in English or Russian), and the
+Russian set in place. bin/FalloutLauncher.exe copies one .sdb set into place
+by its Language choice and sets the bytes in which the two XBEs differ (the
+strings) in default.xbe, leaving its code alone; the fonts and the code fixes
+suit English as well. Exit status: 0 nothing to do, 3 files changed, 1 error
+(nothing written when it is found before the first change).
 """
 import os
 import re
-import shutil
 import struct
 import sys
 import zlib
@@ -76,6 +79,23 @@ CP1251['я'] = 0x9F
 
 def to_game(text):
     return ''.join(chr(CP1251[c]) if c in CP1251 else c for c in text)
+
+
+def write_file(path, data):
+    """Through <path>.tmp and a rename: a crash leaves the old file or the
+    new one, never half of either (a cut-off .en backup was the original
+    lost for good)."""
+    tmp = path + '.tmp'
+    with open(tmp, 'wb') as f:
+        f.write(data)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, path)
+
+
+def read_file(path):
+    with open(path, 'rb') as f:
+        return f.read()
 
 
 
@@ -349,7 +369,7 @@ def export(outdir):
 
 def level_sdbs(resx):
     """Each level's own strings, the names of its objects and characters:
-    resx/c1/TUTOR/TUTOR.sdb and the like (61 files)."""
+    resx/c1/TUTOR/TUTOR.sdb and the like (53 on the USA disc)."""
     out = []
     for c in sorted(os.listdir(resx)):
         cdir = os.path.join(resx, c)
@@ -378,8 +398,9 @@ def sdb_one(path, tr, by_text=False):
     over the .sdb before each start. (changed, translated, total)"""
     orig = path + '.en'
     if not os.path.exists(orig):
-        shutil.copyfile(path, orig)
-    d = open(orig, 'rb').read()
+        sdb_read(read_file(path))              # a whole .sdb, not a cut-off one
+        write_file(orig, read_file(path))
+    d = read_file(orig)
     ents, slots = sdb_read(d)
     if not by_text:
         known = {h for _, h, _ in ents}
@@ -390,11 +411,11 @@ def sdb_one(path, tr, by_text=False):
     done = sum(1 for _, h, s in ents if key(h, s) in tr)
     ents = [(i, h, to_game(tr[key(h, s)]) if key(h, s) in tr else s) for i, h, s in ents]
     out = sdb_write(ents, slots, 2048 if len(d) % 2048 == 0 else 0)
-    changed = open(path, 'rb').read() != out
+    changed = read_file(path) != out
     if changed:
-        open(path, 'wb').write(out)
-    if not os.path.exists(path + '.ru') or open(path + '.ru', 'rb').read() != out:
-        open(path + '.ru', 'wb').write(out)
+        write_file(path, out)
+    if not os.path.exists(path + '.ru') or read_file(path + '.ru') != out:
+        write_file(path + '.ru', out)
     return int(changed), done, len(ents)
 
 
@@ -425,64 +446,104 @@ def sdb_apply(resx):
     return changed
 
 
+def clp_backup(bak):
+    """(original size, header, table of contents) from sfx.clp.en, checked:
+    a cut-off backup written back would leave a clump the game refuses."""
+    b = read_file(bak)
+    if len(b) < 32:
+        raise ValueError(f'{bak} is damaged; restore sfx.clp from the disc and delete it')
+    size, = struct.unpack_from('<Q', b, 0)
+    hdr, toc = b[8:32], b[32:]
+    magic, _, _, crc, n, _ = struct.unpack('<6I', hdr)
+    if magic != 0x434C4D50 or len(toc) != table_slots(n) * 20 or zlib.crc32(toc) != crc:
+        raise ValueError(f'{bak} is damaged; restore sfx.clp from the disc and delete it')
+    return size, hdr, toc
+
+
 def fonts_revert(resx):
     clp = os.path.join(resx, 'sfx.clp')
     bak = clp + '.en'
     if not os.path.exists(bak):
         return 0
-    b = open(bak, 'rb').read()
-    size, = struct.unpack_from('<Q', b, 0)
-    hdr, toc = b[8:32], b[32:]
+    size, hdr, toc = clp_backup(bak)
     with open(clp, 'r+b') as f:
         f.write(hdr)
         sec = struct.unpack_from('<6I', hdr)[2]
         f.seek(sec << 12)
         f.write(toc)
         f.truncate(size)
+        f.flush()
+        os.fsync(f.fileno())
     os.remove(bak)
     return 1
 
 
 def fonts_apply(resx):
+    """1 if sfx.clp changed, 0 if its fonts already were these, -1 (nothing
+    written) when it cannot be done."""
     bold = font_ttf()
     if not os.path.exists(bold):
         print(f'russian: no {bold}; fonts left as they are')
         return 0
-    fonts_revert(resx)
+    try:
+        import PIL.Image  # noqa: F401  -- before anything is written
+    except ImportError:
+        print('russian: Pillow is missing (py -3 -m pip install pillow); nothing written')
+        return -1
     clp = os.path.join(resx, 'sfx.clp')
+    bak = clp + '.en'
     with open(clp, 'r+b') as f:
-        hdr, toc_at, toc, slots = clp_toc(f)
-        # Without sfx.clp.en the fonts must be the original ones: drawing
-        # Cyrillic into fonts that have it already would stack a second set.
-        for name in FONTS:
-            _, (_, sec, _, n, _) = clp_find(toc, slots, name)
-            f.seek(sec << 12)
-            if any(g[0] == 0x410 for g in Font(f.read(n)).glyphs):
-                print(f'russian: {name} in sfx.clp has Cyrillic already but sfx.clp.en is gone; '
-                      'restore the original sfx.clp from the disc first')
-                return 0
-        f.seek(0, 2)
-        size = f.tell()
-        open(clp + '.en', 'wb').write(struct.pack('<Q', size) + hdr + toc)
+        _, toc_at, cur_toc, slots = clp_toc(f)
+        if os.path.exists(bak):
+            size, hdr, toc = clp_backup(bak)
+        else:
+            f.seek(0, 2)
+            size = f.tell()
+            f.seek(0)
+            hdr, toc = f.read(24), cur_toc
+            # Without sfx.clp.en the fonts must be the original ones: drawing
+            # Cyrillic into fonts that have it already would stack a second set.
+            for name in FONTS:
+                _, (_, sec, _, n, _) = clp_find(toc, slots, name)
+                f.seek(sec << 12)
+                if any(g[0] == 0x410 for g in Font(f.read(n)).glyphs):
+                    print(f'russian: {name} in sfx.clp has Cyrillic already but sfx.clp.en is gone; '
+                          'restore the original sfx.clp from the disc first; nothing written')
+                    return -1
+        backup = struct.pack('<Q', size) + bytes(hdr) + bytes(toc)
+        # The new fonts, drawn from the originals (apply only ever appends,
+        # so their sectors are untouched), and where they go: after the
+        # original end of the file.
         toc = bytearray(toc)
         end = size + (-size % 4096)
+        blob = bytearray()
         for name in FONTS:
             i, (h, sec, a, n, b) = clp_find(toc, slots, name)
             f.seek(sec << 12)
             font = Font(f.read(n))
             px = add_cyrillic(font, bold)
             data = font.pack()
-            f.seek(end)
-            f.write(data + b'\0' * (-len(data) % 4096))
-            struct.pack_into('<5I', toc, i * 20, h, end >> 12, a, len(data), b)
+            struct.pack_into('<5I', toc, i * 20, h, (end + len(blob)) >> 12, a, len(data), b)
             print(f'  {name}: +{len(CYRILLIC)} glyphs (PT Sans {px}px), atlas {font.w}x{font.h}')
-            end += len(data) + (-len(data) % 4096)
+            blob += data + b'\0' * (-len(data) % 4096)
         hdr = bytearray(hdr)
         struct.pack_into('<I', hdr, 12, zlib.crc32(toc))
+        f.seek(0, 2)
+        if f.tell() == end + len(blob) and bytes(cur_toc) == bytes(toc):
+            f.seek(end)
+            if f.read(len(blob)) == blob:
+                return 0                       # already these fonts
+        if not os.path.exists(bak):
+            write_file(bak, backup)
+        f.truncate(end)
+        f.seek(end)
+        f.write(blob)
         f.seek(0)
         f.write(hdr)
         f.seek(toc_at)
         f.write(toc)
+        f.flush()
+        os.fsync(f.fileno())
     return 1
 
 
@@ -549,9 +610,10 @@ def xbe_offset(d, va):
     return None
 
 
-def xbe_patch(xbe, to_new):
-    """1 if the file changed, 0 if it already was so, -1 if not this image"""
-    d = bytearray(open(xbe, 'rb').read())
+def xbe_patch(xbe, to_new, dry=False):
+    """1 if the file changed (or would, when dry), 0 if it already was so,
+    -1 if not this image"""
+    d = bytearray(read_file(xbe))
     code = text = False
     sites = [(s, True) for s in XBE_SITES] + [(s, False) for s in xbe_text_sites()]
     for (va, orig, new), is_code in sites:
@@ -570,8 +632,10 @@ def xbe_patch(xbe, to_new):
             d[o:o + len(want)] = want
             code |= is_code
             text |= not is_code
+    if dry:
+        return 1 if code or text else 0
     if code or text:
-        open(xbe, 'wb').write(d)
+        write_file(xbe, d)
     state = 'patched' if to_new else 'original'
     if text:
         print(f'  default.xbe: {len(XBE_TEXT)} strings: inventory, loading screen ({state})')
@@ -588,15 +652,25 @@ def xbe_variants(xbe):
     just the differing bytes in default.xbe by its Language choice, so a
     later widescreen.py apply/revert there stays, and nothing needs
     regenerating."""
-    d = bytearray(open(xbe, 'rb').read())
+    d = bytearray(read_file(xbe))
     for lang in ('en', 'ru'):
         for va, orig, new in xbe_text_sites():
             o = xbe_offset(d, va)
             d[o:o + len(orig)] = new if lang == 'ru' else orig
-        open(xbe + '.' + lang, 'wb').write(d)
+        out = xbe + '.' + lang
+        if not os.path.exists(out) or read_file(out) != d:
+            write_file(out, d)
 
 
 def main(argv):
+    try:
+        return run(argv)
+    except ValueError as e:                    # a damaged file: said, not a traceback
+        print(f'russian: {e}')
+        return 1
+
+
+def run(argv):
     cmd = argv[1] if len(argv) > 1 else 'status'
     if cmd == 'export':
         return export(argv[2] if len(argv) > 2 else os.path.join(ROOT, 'scratch', 'ru', 'en'))
@@ -618,22 +692,29 @@ def main(argv):
               f'XBE strings {"Russian" if patched(xbe_text_sites()) else "English"}')
         return 0
     if cmd == 'apply':
-        x = xbe_patch(xbe, True)
-        if x < 0:
+        # Everything that can refuse does so before the first write: the
+        # XBE (another disc), then the fonts (no Pillow, damaged backup).
+        if xbe_patch(xbe, True, dry=True) < 0:
             return 1
+        f = fonts_apply(resx)
+        if f < 0:
+            return 1
+        x = xbe_patch(xbe, True)
         xbe_variants(xbe)
-        n = sdb_apply(resx) + fonts_apply(resx) + x
+        n = sdb_apply(resx) + f + x
         print('russian: applied' if n else 'russian: nothing to do')
         return 3 if n else 0
     if cmd == 'revert':
+        n = fonts_revert(resx)                 # first: it refuses a damaged backup
         x = xbe_patch(xbe, False)
         for s in ('.en', '.ru'):
             if os.path.exists(xbe + s):
                 os.remove(xbe + s)
-        n = fonts_revert(resx) + max(x, 0)
+        n += max(x, 0)
         for p in [os.path.join(resx, name) for name in SDBS] + level_sdbs(resx):
             if os.path.exists(p + '.en'):
-                shutil.copyfile(p + '.en', p)
+                sdb_read(read_file(p + '.en'))  # a cut-off backup is refused, not copied
+                write_file(p, read_file(p + '.en'))
                 os.remove(p + '.en')
                 n += 1
             if os.path.exists(p + '.ru'):

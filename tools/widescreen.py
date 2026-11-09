@@ -26,7 +26,9 @@ the USA build:
 
 Each site is checked against its original bytes before anything is written,
 so another revision of the disc is refused rather than damaged. `apply` keeps
-the original as default.xbe.4x3; `revert` puts it back. The generated C has
+a copy of the file as it was as default.xbe.4x3 (for safekeeping; nothing
+reads it); `revert` writes the original bytes back into these sites only, so
+other patches (tools/russian.py) stay. The generated C has
 to be redone afterwards (`./regen.sh --disasm`, then build): the patch is in
 the code. Exit status: 0 nothing to do, 3 the file changed, 1 not this image.
 """

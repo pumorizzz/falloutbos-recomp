@@ -135,8 +135,13 @@ if (-not (Test-Path (Join-Path $Root 'game\default.xbe'))) {
 # For 4:3: "py -3 tools\widescreen.py revert", then ./regen.sh --disasm and
 # cmake --build build-msvc --config Release by hand. Not Setup again: this
 # step would put 16:9 back.
+# 'Continue' for the call, as in Run: under 'Stop' a traceback on stderr
+# would end the script here with nothing said.
+$prev = $ErrorActionPreference
+$ErrorActionPreference = 'Continue'
 $wsOut = @(py -3 (Join-Path $Root 'tools\widescreen.py') apply 2>&1 | ForEach-Object { "$_" })
 $wsCode = $LASTEXITCODE
+$ErrorActionPreference = $prev
 $wsOut | Out-File $Log -Append -Encoding utf8
 $WidescreenChanged = $false
 if ($wsCode -eq 3) { Say "Patched game\default.xbe for 16:9"; $WidescreenChanged = $true }

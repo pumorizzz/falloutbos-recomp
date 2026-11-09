@@ -75,7 +75,9 @@ py -3 tools/russian.py apply
 cmake --build build-msvc --config Release
 ```
 
-Then choose **Русский** under *Language* in the launcher. **English is the default.**
+Then choose **Русский** under *Language* in the launcher. **English is the
+launcher's default**; `apply` itself leaves the Russian set in place, so
+`Play.cmd` runs in Russian until the launcher has been started with English.
 Switching back and forth needs no rebuild.
 
 - **Text:** all of `gtext.sdb` (dialogue, quests, menus, hints, subtitles), the
@@ -158,8 +160,9 @@ cmake --build build-msvc --config Release
 
 Both XBE patches (`widescreen.py`, `russian.py`) check every site against its
 original bytes and refuse another disc revision. After either one, regenerate and
-build again. `widescreen.py revert` puts back its own 4:3 copy without the Russian
-fix, so run `russian.py apply` again after it.
+build again. Each touches only its own sites: `widescreen.py revert` puts back
+the 4:3 bytes and leaves the Russian fixes, and the launcher's language switch
+changes only the XBE's strings, so either order works.
 
 `cmake --build` re-runs `./regen.sh` by itself when the toolkit's code generator is
 newer than the last regen (`-DFBOS_AUTO_REGEN=OFF` turns that off).

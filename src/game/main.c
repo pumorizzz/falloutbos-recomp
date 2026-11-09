@@ -264,10 +264,14 @@ static DWORD WINAPI profiler(LPVOID arg)
     t0 = GetTickCount();
     {
         /* The snapshot lists every thread on the system and is slow, so the
-         * thread list is refreshed once a second, not per sample. */
-        HANDLE th[64];
-        DWORD tid[64], refreshed = 0;
-        unsigned nth = 0, k;
+         * thread list is refreshed once a second, not per sample. 64 slots
+         * were too few: fifty-odd threads wait, and the vertex helpers and
+         * raster workers, created last and the busy ones, could fall off the
+         * end unsaid. Any past these are counted and reported. */
+        enum { MAX_TH = 256 };
+        HANDLE th[MAX_TH];
+        DWORD tid[MAX_TH], refreshed = 0;
+        unsigned nth = 0, k, over = 0, most_over = 0;
         while (GetTickCount() - t0 < secs * 1000u) {
             if (!refreshed || GetTickCount() - refreshed > 1000) {
                 HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
@@ -275,12 +279,16 @@ static DWORD WINAPI profiler(LPVOID arg)
                 for (k = 0; k < nth; k++)
                     CloseHandle(th[k]);
                 nth = 0;
+                over = 0;
                 te.dwSize = sizeof(te);
                 if (snap != INVALID_HANDLE_VALUE && Thread32First(snap, &te)) {
                     do {
-                        if (te.th32OwnerProcessID != pid || te.th32ThreadID == me
-                            || nth == 64)
+                        if (te.th32OwnerProcessID != pid || te.th32ThreadID == me)
                             continue;
+                        if (nth == MAX_TH) {
+                            over++;
+                            continue;
+                        }
                         th[nth] = OpenThread(THREAD_GET_CONTEXT | THREAD_SUSPEND_RESUME,
                                              FALSE, te.th32ThreadID);
                         if (th[nth])
@@ -289,6 +297,8 @@ static DWORD WINAPI profiler(LPVOID arg)
                 }
                 if (snap != INVALID_HANDLE_VALUE)
                     CloseHandle(snap);
+                if (over > most_over)
+                    most_over = over;
                 refreshed = GetTickCount();
             }
             for (k = 0; k < nth; k++) {
@@ -306,6 +316,9 @@ static DWORD WINAPI profiler(LPVOID arg)
         }
         for (k = 0; k < nth; k++)
             CloseHandle(th[k]);
+        if (most_over)
+            fprintf(stderr, "[PROF] %u threads past the first %u were not sampled\n",
+                    most_over, (unsigned)MAX_TH);
     }
     for (i = 0; i < (1u << 16); i++)
         if (g_raw[i].n)
