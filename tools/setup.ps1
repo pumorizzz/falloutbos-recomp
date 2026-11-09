@@ -58,7 +58,10 @@ function Install($id, $why, $size) {
 Say "Checking prerequisites..."
 if (-not (Have 'py')) { Install 'Python.Python.3.12' 'Python 3' '30 MB' }
 if (-not (Have 'py')) { Fail "Python is installed but 'py' is not on PATH yet; open a new window and run Setup.cmd again." }
-& py -3 -c "import capstone" 2>$null
+# Asked without a traceback: Windows PowerShell turns a native program's
+# redirected stderr into an error record, and under 'Stop' that ended the
+# script right here, before the question below (see Run).
+& py -3 -c "import importlib.util, sys; sys.exit(importlib.util.find_spec('capstone') is None)"
 if ($LASTEXITCODE -ne 0) {
     if (-not (Ask "The Python package 'capstone' (disassembler, about 3 MB) is missing. Install it with pip?")) { Fail "capstone is required." }
     Run 'pip install capstone' { py -3 -m pip install --user capstone }
@@ -129,8 +132,9 @@ if (-not (Test-Path (Join-Path $Root 'game\default.xbe'))) {
 
 # ---- 3b. widescreen ------------------------------------------------------------
 # Nemesis2000's 16:9 patch, mapped onto the USA image (tools\widescreen.py).
-# The original is kept as game\default.xbe.4x3; "py -3 tools\widescreen.py
-# revert" puts it back (then delete src\game\recomp\gen and run Setup again).
+# For 4:3: "py -3 tools\widescreen.py revert", then ./regen.sh --disasm and
+# cmake --build build-msvc --config Release by hand. Not Setup again: this
+# step would put 16:9 back.
 $wsOut = @(py -3 (Join-Path $Root 'tools\widescreen.py') apply 2>&1 | ForEach-Object { "$_" })
 $wsCode = $LASTEXITCODE
 $wsOut | Out-File $Log -Append -Encoding utf8

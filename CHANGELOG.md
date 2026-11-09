@@ -35,9 +35,10 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
   kept only the low byte of a format's own characters ("Выбрать" read
   "K1@0BL"), and the 8-bit-to-wide copies widened with a sign ("Pick up %s" was
   cut to "...").
-- Launcher: Language, English (original) or Russian; it copies the chosen set
-  of `game\resx\*.sdb` and `game\default.xbe` (`.en`/`.ru`) into place before
-  the start.
+- Launcher: Language, English (original) or Russian; before the start it
+  copies the chosen set of `game\resx\*.sdb` (`.en`/`.ru`) into place and sets
+  the XBE's strings in `game\default.xbe` from `default.xbe.en`/`.ru`, leaving
+  its code alone (copying the whole file undid a later `widescreen.py`).
 - README rewritten around the current build, with new 16:9 screenshots; the old
   4:3 screenshots and the GIF are gone.
 - `bin\FalloutLauncher.exe` (`tools/launcher`): render resolution, picture

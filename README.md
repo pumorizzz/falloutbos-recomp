@@ -100,8 +100,9 @@ Switching back and forth needs no rebuild.
   needed.
 - **Both languages stay installed.** Every `.sdb` has `.sdb.en` and `.sdb.ru` side
   by side, and `default.xbe` has `.en` and `.ru` (the same code, the XBE's
-  strings in either language); the launcher copies the chosen set into place before
-  each start.
+  strings in either language); before each start the launcher copies the chosen
+  `.sdb` set into place and sets only those strings in `default.xbe`, so the
+  code in it (16:9 or 4:3) stays as it is.
 - **Stays English:** level names (save names), the folder name of each level
   (`TUTORIAL` is a path), text drawn into textures (the compass letters) and movies
   (the T. S. Eliot quote in the intro), and the credits.

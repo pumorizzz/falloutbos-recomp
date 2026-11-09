@@ -335,6 +335,15 @@ static LONG CALLBACK veh_handler(PEXCEPTION_POINTERS ep)
      * this a stack overflow or illegal instruction just ends the process,
      * which reads like a clean exit in a log. */
     if (er->ExceptionCode != EXCEPTION_ACCESS_VIOLATION) {
+        /* A vectored handler sees first-chance exceptions that are handled
+         * and harmless: a thread being named (0x406D1388, from a driver once
+         * the swapchain is up), OutputDebugString (0x40010006/0x4001000A),
+         * C++ exceptions a library catches itself (0xE06D7363). Reported,
+         * they read as a crash, used up the four reports a real one needs,
+         * and failed boot_check's "no faults". */
+        if ((er->ExceptionCode & 0xC0000000u) == 0x40000000u ||
+            er->ExceptionCode == 0xE06D7363u)
+            return EXCEPTION_CONTINUE_SEARCH;
         if (others++ < 4) {
             fprintf(stderr, "\n[EXCEPTION] code 0x%08lX at %p on thread %lu\n",
                     (unsigned long)er->ExceptionCode,

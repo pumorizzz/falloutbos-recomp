@@ -39,8 +39,9 @@ widescreen.py's revert restores its 4:3 copy without them: run `apply` again.
 and table of contents); `revert` puts them and the XBE bytes back. It leaves
 both languages installed: every .sdb as .sdb.en and .sdb.ru, default.xbe as
 default.xbe.en and .ru (the same code, the XBE strings in English or
-Russian). bin/FalloutLauncher.exe copies one set into place by its Language
-choice; the fonts and the code fixes suit English as well. Exit status: 0 nothing to
+Russian). bin/FalloutLauncher.exe copies one .sdb set into place by its
+Language choice and sets the bytes in which the two XBEs differ (the strings)
+in default.xbe, leaving its code alone; the fonts and the code fixes suit English as well. Exit status: 0 nothing to
 do, 3 files changed, 1 error.
 """
 import os
@@ -582,9 +583,11 @@ def xbe_patch(xbe, to_new):
 
 def xbe_variants(xbe):
     """default.xbe.en and .ru: the same code (all XBE_SITES applied), the
-    XBE_TEXT strings in English or Russian. The launcher copies one over
-    default.xbe by its Language choice; they differ only in .rdata, which the
-    runtime maps at start-up, so neither needs regenerating."""
+    XBE_TEXT strings in English or Russian. They differ only in those
+    strings in .rdata, which the runtime maps at start-up; the launcher sets
+    just the differing bytes in default.xbe by its Language choice, so a
+    later widescreen.py apply/revert there stays, and nothing needs
+    regenerating."""
     d = bytearray(open(xbe, 'rb').read())
     for lang in ('en', 'ru'):
         for va, orig, new in xbe_text_sites():

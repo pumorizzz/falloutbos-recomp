@@ -13,6 +13,7 @@
  */
 #include <windows.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 typedef struct {
@@ -133,9 +134,115 @@ static int copy_set_file(HWND owner, const char *src, const char *dst)
     return 0;
 }
 
-/* Copy the chosen language's .sdb set into place. A set that is not there
- * (no tools/russian.py apply yet, so no .en either) leaves the files as
- * they are: 1, unless a copy failed. */
+/* The whole file, or NULL. */
+static unsigned char *read_all(const char *path, DWORD *size)
+{
+    HANDLE f = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING,
+                           FILE_ATTRIBUTE_NORMAL, NULL);
+    unsigned char *d = NULL;
+    DWORD got = 0;
+
+    if (f == INVALID_HANDLE_VALUE)
+        return NULL;
+    *size = GetFileSize(f, NULL);
+    if (*size != INVALID_FILE_SIZE && (d = (unsigned char *)malloc(*size ? *size : 1)) != NULL
+        && (!ReadFile(f, d, *size, &got, NULL) || got != *size)) {
+        free(d);
+        d = NULL;
+    }
+    CloseHandle(f);
+    return d;
+}
+
+static void xbe_error(HWND owner, const char *what)
+{
+    char msg[512];
+    snprintf(msg, sizeof msg, "game\\default.xbe: %s\n\nRun py -3 tools\\russian.py apply again.",
+             what);
+    MessageBoxA(owner, msg, "Fallout: Brotherhood of Steel", MB_ICONERROR);
+}
+
+/* The inventory's labels and the loading screen's "Loading..." are 8-bit
+ * strings in the XBE's .rdata. default.xbe.en and .ru (tools/russian.py,
+ * xbe_variants) differ only in those bytes, so exactly those bytes of
+ * default.xbe are set from the chosen one. The rest of the file -- the code
+ * the C was generated from, 16:9 or 4:3 (widescreen.py) -- stays as it is:
+ * copying the whole variant put back the XBE of the last `russian.py apply`
+ * and undid a later widescreen.py apply or revert. 1, or 0 after saying why. */
+static int set_xbe_strings(HWND owner, const char *lang)
+{
+    char cur_p[MAX_PATH], en_p[MAX_PATH], ru_p[MAX_PATH], tmp_p[MAX_PATH];
+    unsigned char *cur, *en, *ru, *want;
+    DWORD n_cur = 0, n_en = 0, n_ru = 0, i, changed = 0;
+    int ok = 0;
+
+    snprintf(cur_p, sizeof cur_p, "%s\\game\\default.xbe", s_root);
+    snprintf(en_p, sizeof en_p, "%s.en", cur_p);
+    snprintf(ru_p, sizeof ru_p, "%s.ru", cur_p);
+    if (GetFileAttributesA(en_p) == INVALID_FILE_ATTRIBUTES ||
+        GetFileAttributesA(ru_p) == INVALID_FILE_ATTRIBUTES)
+        return 1;                       /* no russian.py apply: nothing to set */
+    cur = read_all(cur_p, &n_cur);
+    en = read_all(en_p, &n_en);
+    ru = read_all(ru_p, &n_ru);
+    want = strcmp(lang, "ru") == 0 ? ru : en;
+    if (!cur || !en || !ru) {
+        xbe_error(owner, "could not read it or its .en/.ru set.");
+        goto out;
+    }
+    if (n_cur != n_en || n_en != n_ru) {
+        xbe_error(owner, "it is not the image its .en/.ru set was made from.");
+        goto out;
+    }
+    for (i = 0; i < n_cur; i++)
+        if (en[i] != ru[i] && cur[i] != en[i] && cur[i] != ru[i]) {
+            xbe_error(owner, "its strings are neither the English nor the Russian ones.");
+            goto out;
+        }
+    for (i = 0; i < n_cur; i++)
+        if (en[i] != ru[i] && cur[i] != want[i]) {
+            cur[i] = want[i];
+            changed++;
+        }
+    if (changed) {
+        /* Written beside it and moved over, so a failed write never leaves a
+         * half-written XBE. */
+        HANDLE f;
+        DWORD put = 0;
+        snprintf(tmp_p, sizeof tmp_p, "%s.tmp", cur_p);
+        f = CreateFileA(tmp_p, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+        if (f == INVALID_HANDLE_VALUE || !WriteFile(f, cur, n_cur, &put, NULL) || put != n_cur
+            || !FlushFileBuffers(f)) {
+            char what[96];
+            snprintf(what, sizeof what, "could not write it (error %lu).",
+                     (unsigned long)GetLastError());
+            if (f != INVALID_HANDLE_VALUE)
+                CloseHandle(f);
+            DeleteFileA(tmp_p);
+            xbe_error(owner, what);
+            goto out;
+        }
+        CloseHandle(f);
+        if (!MoveFileExA(tmp_p, cur_p, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+            char what[96];
+            snprintf(what, sizeof what, "could not replace it (error %lu); is the game running?",
+                     (unsigned long)GetLastError());
+            DeleteFileA(tmp_p);
+            xbe_error(owner, what);
+            goto out;
+        }
+    }
+    ok = 1;
+out:
+    free(cur);
+    free(en);
+    free(ru);
+    return ok;
+}
+
+/* Copy the chosen language's .sdb set into place, and set the XBE's strings.
+ * A set that is not there (no tools/russian.py apply yet, so no .en either)
+ * leaves the files as they are: 1, unless a copy failed. */
 static int set_language(HWND owner)
 {
     const char *lang = k_lang[selected(s_lang)];
@@ -148,12 +255,7 @@ static int set_language(HWND owner)
                     MB_ICONERROR);
         return 0;
     }
-    /* The inventory's labels and the loading screen's "Loading..." live in
-     * the XBE's .rdata: default.xbe.en/.ru, the same code otherwise
-     * (tools/russian.py, xbe_variants). */
-    snprintf(src, sizeof src, "%s\\game\\default.xbe.%s", s_root, lang);
-    snprintf(dst, sizeof dst, "%s\\game\\default.xbe", s_root);
-    if (!copy_set_file(owner, src, dst))
+    if (!set_xbe_strings(owner, lang))
         return 0;
     for (i = 0; i < COUNT(k_sdb); i++) {
         snprintf(src, sizeof src, "%s\\game\\resx\\%s.%s", s_root, k_sdb[i], lang);
