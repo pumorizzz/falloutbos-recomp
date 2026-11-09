@@ -30,7 +30,10 @@ it (./regen.sh, cmake --build). widescreen.py's revert restores its 4:3 copy
 without this patch: run `apply` again after it.
 
 `apply` keeps the originals: <name>.sdb.en, and sfx.clp.en (its size, header
-and table of contents); `revert` puts them and the XBE bytes back. Exit status: 0 nothing to
+and table of contents); `revert` puts them and the XBE bytes back. It also
+leaves the Russian set as <name>.sdb.ru: bin/FalloutLauncher.exe copies the
+.en or .ru set over <name>.sdb by its Language choice. The fonts and the XBE
+fix suit English as well (Latin glyphs and ASCII are unchanged). Exit status: 0 nothing to
 do, 3 files changed, 1 error.
 """
 import os
@@ -315,6 +318,10 @@ def sdb_apply(resx):
         if open(path, 'rb').read() != out:
             open(path, 'wb').write(out)
             changed += 1
+        # both sets stay side by side, <name>.sdb.en and .sdb.ru: the launcher
+        # copies the chosen one over <name>.sdb before starting the game
+        if not os.path.exists(path + '.ru') or open(path + '.ru', 'rb').read() != out:
+            open(path + '.ru', 'wb').write(out)
         print(f'  {name}: {done} of {len(ents)} strings in Russian')
     return changed
 
@@ -445,6 +452,8 @@ def main(argv):
                 shutil.copyfile(p + '.en', p)
                 os.remove(p + '.en')
                 n += 1
+            if os.path.exists(p + '.ru'):
+                os.remove(p + '.ru')
         print('russian: back to English' if n else 'russian: already English')
         return 3 if n else 0
     print(__doc__)

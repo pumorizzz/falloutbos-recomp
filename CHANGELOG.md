@@ -31,6 +31,8 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
   restores English. One code fix, 4 bytes of `default.xbe`: the game's wide
   `sprintf` kept only the low byte of a format's own characters, so
   "%cВыбрать %u  %cНазад" under character select read "K1@0BL ... 0704".
+- Launcher: Language, English (original) or Russian; it copies the chosen set
+  of `game\resx\*.sdb` into place before the start.
 - `bin\FalloutLauncher.exe` (`tools/launcher`): render resolution, picture
   size, full screen, MSAA and the frame-rate limit (30, 60 or 120), then the game; remembered in `bin\launcher.ini`.
 

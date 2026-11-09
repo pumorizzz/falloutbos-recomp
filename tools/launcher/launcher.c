@@ -6,7 +6,8 @@
  * (README, "Usage"): RECOMP_GPU_RASTER_SCALE (the resolution the GPU renders
  * at, a multiple of the game's 640x480), RECOMP_FB_SIZE and
  * RECOMP_FB_FULLSCREEN (the picture), RECOMP_GPU_RASTER_MSAA, RECOMP_FPS_LIMIT
- * (the frame-rate cap). The choice is
+ * (the frame-rate cap). The language copies a set of the game's text files
+ * into place (set_language). The choice is
  * kept in bin\launcher.ini. Plain Win32, no resources: built with the game
  * (tools/launcher/CMakeLists.txt) into bin\.
  */
@@ -51,11 +52,18 @@ static const Choice k_fps[] = {
 };
 #define COUNT(a) ((int)(sizeof(a) / sizeof((a)[0])))
 
-enum { ID_RENDER = 100, ID_OUTPUT, ID_AA, ID_FPS, ID_FULL, ID_PLAY, ID_QUIT };
+/* The game's text: game\resx\<name>.sdb, copied from <name>.sdb.en or .sdb.ru
+ * before the start. tools/russian.py apply leaves both sets there (the fonts
+ * it patches and its XBE fix suit English too); without it there is no .ru
+ * and the choice stays English. */
+static const char *const k_sdb[] = { "gtext.sdb", "global.sdb", "deftexte.sdb" };
+static const char *const k_lang[] = { "en", "ru" };
+
+enum { ID_RENDER = 100, ID_OUTPUT, ID_AA, ID_FPS, ID_FULL, ID_LANG, ID_PLAY, ID_QUIT };
 
 static char s_root[MAX_PATH];           /* the repository: bin\.. */
 static char s_ini[MAX_PATH];
-static HWND s_render, s_output, s_aa, s_fps, s_full;
+static HWND s_render, s_output, s_aa, s_fps, s_full, s_lang;
 static HFONT s_font;
 
 static int find_value(const Choice *c, int n, const char *v, int fallback)
@@ -101,6 +109,44 @@ static void save(void)
     WritePrivateProfileStringA("launcher", "fps", k_fps[selected(s_fps)].value, s_ini);
     WritePrivateProfileStringA("launcher", "fullscreen",
         SendMessageA(s_full, BM_GETCHECK, 0, 0) == BST_CHECKED ? "1" : "0", s_ini);
+    WritePrivateProfileStringA("launcher", "language", k_lang[selected(s_lang)], s_ini);
+}
+
+static int russian_present(void)
+{
+    char p[MAX_PATH];
+    snprintf(p, sizeof p, "%s\\game\\resx\\gtext.sdb.ru", s_root);
+    return GetFileAttributesA(p) != INVALID_FILE_ATTRIBUTES;
+}
+
+/* Copy the chosen language's .sdb set into place. A set that is not there
+ * (no tools/russian.py apply yet, so no .en either) leaves the files as
+ * they are: 1, unless a copy failed. */
+static int set_language(HWND owner)
+{
+    const char *lang = k_lang[selected(s_lang)];
+    char src[MAX_PATH], dst[MAX_PATH], msg[MAX_PATH + 64];
+    int i;
+
+    if (strcmp(lang, "ru") == 0 && !russian_present()) {
+        MessageBoxA(owner, "The Russian text is not installed: run\n"
+                           "py -3 tools\\russian.py apply", "Fallout: Brotherhood of Steel",
+                    MB_ICONERROR);
+        return 0;
+    }
+    for (i = 0; i < COUNT(k_sdb); i++) {
+        snprintf(src, sizeof src, "%s\\game\\resx\\%s.%s", s_root, k_sdb[i], lang);
+        snprintf(dst, sizeof dst, "%s\\game\\resx\\%s", s_root, k_sdb[i]);
+        if (GetFileAttributesA(src) == INVALID_FILE_ATTRIBUTES)
+            continue;
+        if (!CopyFileA(src, dst, FALSE)) {
+            snprintf(msg, sizeof msg, "Could not copy %s (error %lu).", src,
+                     (unsigned long)GetLastError());
+            MessageBoxA(owner, msg, "Fallout: Brotherhood of Steel", MB_ICONERROR);
+            return 0;
+        }
+    }
+    return 1;
 }
 
 /* bin\fobos.exe, from the repository root (it reads game\default.xbe), with
@@ -196,6 +242,20 @@ static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
         GetPrivateProfileStringA("launcher", "fps", "60", v, sizeof v, s_ini);
         s_fps = combo(h, ID_FPS, 16, y + 20, k_fps, COUNT(k_fps),
                       find_value(k_fps, COUNT(k_fps), v, 1));
+        y += 56;
+        make("STATIC", "Language:", 0, 16, y, 300, 18, h, 0);
+        /* A Unicode combo of its own, so "Русский" shows under any code page. */
+        s_lang = CreateWindowExW(0, L"COMBOBOX", L"",
+                                 WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | WS_TABSTOP,
+                                 16, y + 20, 300, 200, h, (HMENU)(INT_PTR)ID_LANG,
+                                 GetModuleHandleA(NULL), NULL);
+        SendMessageW(s_lang, WM_SETFONT, (WPARAM)s_font, TRUE);
+        SendMessageW(s_lang, CB_ADDSTRING, 0, (LPARAM)L"English (original)");
+        SendMessageW(s_lang, CB_ADDSTRING, 0,
+                     (LPARAM)L"\x0420\x0443\x0441\x0441\x043a\x0438\x0439 (Russian)");
+        GetPrivateProfileStringA("launcher", "language", russian_present() ? "ru" : "en",
+                                 v, sizeof v, s_ini);
+        SendMessageW(s_lang, CB_SETCURSEL, strcmp(v, "ru") == 0 ? 1 : 0, 0);
         y += 60;
         make("STATIC", "Higher render resolution and MSAA cost GPU time;\n"
                        "3x with MSAA 4x holds 60 fps on a fast card.",
@@ -208,7 +268,7 @@ static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
     case WM_COMMAND:
         if (LOWORD(w) == ID_PLAY) {
             save();
-            if (play(h))
+            if (set_language(h) && play(h))
                 DestroyWindow(h);
         } else if (LOWORD(w) == ID_QUIT) {
             DestroyWindow(h);
@@ -228,7 +288,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 {
     WNDCLASSA wc;
     NONCLIENTMETRICSA ncm;
-    RECT r = { 0, 0, 332, 408 };
+    RECT r = { 0, 0, 332, 464 };
     MSG msg;
     HWND h;
     char *slash;

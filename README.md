@@ -189,7 +189,9 @@ Everything below lives in the toolkit fork's `gpu-rastr` branch unless it says
   (А-я, Ё, ё, « » – — №) are drawn from PT Sans (SIL OFL, `tools/ru/fonts`)
   in the fonts' own style under their atlases. The translation is in
   `tools/ru/` by string hash; `revert` restores the English files (kept as
-  `*.en`). Text drawn into textures and movies stays English.
+  `*.en`). Text drawn into textures and movies stays English. Both text sets
+  stay in `game\resx` (`*.sdb.en`, `*.sdb.ru`), and the launcher's Language
+  choice copies one of them into place before each start.
 - **Picture size and aspect** (toolkit): the window and the swap chain
   follow the window's size, the frame is filtered into the largest rectangle
   of the display aspect with bars around it (`RECOMP_FB_ASPECT`,
@@ -254,7 +256,8 @@ Nothing from the game is downloaded or included.
    first time, most of it the build. If it stops, it says why in one sentence
    and keeps the details in `setup.log`; running it again resumes.
 3. Double-click **`bin\FalloutLauncher.exe`** to pick the render resolution,
-   the picture size, full screen, anti-aliasing and the frame-rate limit, then Play (the choice is
+   the picture size, full screen, anti-aliasing, the frame-rate limit and the
+   language (English, or Russian once `tools/russian.py apply` has run), then Play (the choice is
    kept in `bin\launcher.ini`; the game's messages go to `fobos.log`, with no
    console window) -- or **`Play.cmd`** for the defaults. An
    XInput controller (Xbox 360/One pad) is
