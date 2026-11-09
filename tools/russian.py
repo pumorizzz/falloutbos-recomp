@@ -65,8 +65,10 @@ def sdb_read(d):
     for i in range(slots):
         h, o = struct.unpack_from('<II', d, tbl + i * 8)
         if h or o:
+            if o >= tbl:
+                raise ValueError('string offset past the strings')
             e = o
-            while d[e:e + 2] != b'\0\0':
+            while e < tbl and d[e:e + 2] != b'\0\0':
                 e += 2
             out.append((o, i, h, d[o:e].decode('utf-16le')))
     if len(out) != cnt:
@@ -427,7 +429,10 @@ def main(argv):
     resx = argv[2] if len(argv) > 2 else os.path.join(ROOT, 'game', 'resx')
     xbe = os.path.join(os.path.dirname(resx), 'default.xbe')
     if cmd == 'status':
-        sdb = [n for n in SDBS if os.path.exists(os.path.join(resx, n + '.en'))]
+        def same(a, b):
+            return os.path.exists(b) and open(a, 'rb').read() == open(b, 'rb').read()
+        # the launcher may have copied either set into place
+        sdb = [n for n in SDBS if same(os.path.join(resx, n), os.path.join(resx, n + '.ru'))]
         fnt = os.path.exists(os.path.join(resx, 'sfx.clp.en'))
         d = open(xbe, 'rb').read()
         o = xbe_offset(d, XBE_SITES[0][0])

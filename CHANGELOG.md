@@ -33,6 +33,8 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
   "%cВыбрать %u  %cНазад" under character select read "K1@0BL ... 0704".
 - Launcher: Language, English (original) or Russian; it copies the chosen set
   of `game\resx\*.sdb` into place before the start.
+- README rewritten around the current build, with new 16:9 screenshots; the old
+  4:3 screenshots and the GIF are gone.
 - `bin\FalloutLauncher.exe` (`tools/launcher`): render resolution, picture
   size, full screen, MSAA and the frame-rate limit (30, 60 or 120), then the game; remembered in `bin\launcher.ini`.
 
