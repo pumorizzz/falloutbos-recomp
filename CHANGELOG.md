@@ -91,7 +91,10 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
   rename; a cut-off `sfx.clp.en` or `.sdb.en` is refused instead of written
   back; `apply` refuses (no Pillow, another disc, fonts drawn already without
   a backup) before writing anything, with exit status 1, and exits 0 when
-  nothing changes instead of redrawing the fonts every time.
+  nothing changes instead of redrawing the fonts every time. An `apply` cut
+  short (a CRC that fails in `sfx.clp`) is finished by the next `apply` from
+  `sfx.clp.en`; a damaged `.sdb` or its backup is named, and `revert` puts
+  every other file back and lists the ones it had to leave.
 - `FBOS_PROFILE` sampled at most 64 threads and dropped the rest unsaid; now
   256, and any past them are reported.
 

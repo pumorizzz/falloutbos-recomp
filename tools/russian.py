@@ -397,11 +397,15 @@ def sdb_one(path, tr, by_text=False):
     Russian set as <path>.ru too: the launcher copies the .en or the .ru set
     over the .sdb before each start. (changed, translated, total)"""
     orig = path + '.en'
-    if not os.path.exists(orig):
-        sdb_read(read_file(path))              # a whole .sdb, not a cut-off one
-        write_file(orig, read_file(path))
-    d = read_file(orig)
-    ents, slots = sdb_read(d)
+    try:
+        if not os.path.exists(orig):
+            sdb_read(read_file(path))          # a whole .sdb, not a cut-off one
+            write_file(orig, read_file(path))
+        d = read_file(orig)
+        ents, slots = sdb_read(d)
+    except ValueError as e:
+        raise ValueError(f'{orig if os.path.exists(orig) else path}: {e}; '
+                         'restore the .sdb from the disc and delete its .en') from None
     if not by_text:
         known = {h for _, h, _ in ents}
         stray = [h for h in tr if h not in known]
@@ -493,10 +497,22 @@ def fonts_apply(resx):
     clp = os.path.join(resx, 'sfx.clp')
     bak = clp + '.en'
     with open(clp, 'r+b') as f:
-        _, toc_at, cur_toc, slots = clp_toc(f)
         if os.path.exists(bak):
+            # Everything from the backup: an apply cut short between the
+            # header and the table of contents leaves a CRC that fails, and
+            # this apply writes both again.
             size, hdr, toc = clp_backup(bak)
+            toc_at = struct.unpack_from('<6I', hdr)[2] << 12
+            slots = len(toc) // 20
+            try:
+                cur_toc = clp_toc(f)[2]
+            except ValueError:
+                cur_toc = None
         else:
+            try:
+                _, toc_at, cur_toc, slots = clp_toc(f)
+            except ValueError as e:
+                raise ValueError(f'{clp}: {e}; restore it from the disc') from None
             f.seek(0, 2)
             size = f.tell()
             f.seek(0)
@@ -529,7 +545,7 @@ def fonts_apply(resx):
         hdr = bytearray(hdr)
         struct.pack_into('<I', hdr, 12, zlib.crc32(toc))
         f.seek(0, 2)
-        if f.tell() == end + len(blob) and bytes(cur_toc) == bytes(toc):
+        if f.tell() == end + len(blob) and cur_toc is not None and bytes(cur_toc) == bytes(toc):
             f.seek(end)
             if f.read(len(blob)) == blob:
                 return 0                       # already these fonts
@@ -711,14 +727,26 @@ def run(argv):
             if os.path.exists(xbe + s):
                 os.remove(xbe + s)
         n += max(x, 0)
+        damaged = []
         for p in [os.path.join(resx, name) for name in SDBS] + level_sdbs(resx):
             if os.path.exists(p + '.en'):
-                sdb_read(read_file(p + '.en'))  # a cut-off backup is refused, not copied
+                try:
+                    sdb_read(read_file(p + '.en'))  # a cut-off backup is refused, not copied
+                except ValueError as e:
+                    # left as it is, .en and .ru included; the rest still go back
+                    damaged.append(f'{p}.en ({e})')
+                    continue
                 write_file(p, read_file(p + '.en'))
                 os.remove(p + '.en')
                 n += 1
             if os.path.exists(p + '.ru'):
                 os.remove(p + '.ru')
+        if damaged:
+            print('russian: these backups are damaged and their .sdb left in Russian; '
+                  'restore each .sdb from the disc and delete its .en:')
+            for d in damaged:
+                print('  ' + d)
+            return 1
         print('russian: back to English' if n else 'russian: already English')
         return 3 if n else 0
     print(__doc__)
