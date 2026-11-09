@@ -97,6 +97,10 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
   every other file back and lists the ones it had to leave.
 - `FBOS_PROFILE` sampled at most 64 threads and dropped the rest unsaid; now
   256, and any past them are reported.
+- `russian.py status` on an XBE of another revision stopped with a traceback;
+  it now says it is not this image and exits 1. `revert` no longer claims the
+  `.sdb` beside a damaged backup is Russian (the launcher may have put the
+  English set there).
 
 ### Added (boot to Carbon, 2026-10-17 to 2026-10-18)
 - Project from the xboxrecomp new-game template and the Half-Life 2 port's

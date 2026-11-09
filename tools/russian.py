@@ -699,6 +699,12 @@ def run(argv):
         sdb = [n for n in SDBS if same(os.path.join(resx, n), os.path.join(resx, n + '.ru'))]
         fnt = os.path.exists(os.path.join(resx, 'sfx.clp.en'))
         d = open(xbe, 'rb').read()
+        for va, orig, new in XBE_SITES + xbe_text_sites():
+            o = xbe_offset(d, va)
+            if o is None or d[o:o + len(orig)] not in (orig, new):
+                print(f'russian: {xbe} at {va:#010x} is neither the original nor the patch; '
+                      'not the image these fixes are for')
+                return 1
 
         def patched(sites):
             return sum(1 for va, _, new in sites if d[xbe_offset(d, va):xbe_offset(d, va) + len(new)] == new)
@@ -742,7 +748,7 @@ def run(argv):
             if os.path.exists(p + '.ru'):
                 os.remove(p + '.ru')
         if damaged:
-            print('russian: these backups are damaged and their .sdb left in Russian; '
+            print('russian: these backups are damaged and their .sdb left as they are; '
                   'restore each .sdb from the disc and delete its .en:')
             for d in damaged:
                 print('  ' + d)
