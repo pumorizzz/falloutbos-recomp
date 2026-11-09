@@ -101,6 +101,8 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
   it now says it is not this image and exits 1. `revert` no longer claims the
   `.sdb` beside a damaged backup is Russian (the launcher may have put the
   English set there).
+- Three Russian lines (a ghoul's compliment, two Shop-Tec adverts) had a
+  double space where the English has its ellipsis (byte 0x85); now "...".
 
 ### Added (boot to Carbon, 2026-10-17 to 2026-10-18)
 - Project from the xboxrecomp new-game template and the Half-Life 2 port's
