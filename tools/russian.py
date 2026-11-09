@@ -719,7 +719,14 @@ def run(argv):
     if cmd == 'export':
         return export(argv[2] if len(argv) > 2 else os.path.join(ROOT, 'scratch', 'ru', 'en'))
     if cmd == 'code-mark':
-        return code_mark(os.path.join(ROOT, 'game', 'default.xbe'), argv[2])
+        if len(argv) < 3:
+            print(__doc__)
+            return 1
+        xbe = os.path.join(ROOT, 'game', 'default.xbe')
+        if not os.path.isfile(xbe):
+            print(f'russian: no {xbe}; unpack the game first')
+            return 1
+        return code_mark(xbe, argv[2])
     resx = argv[2] if len(argv) > 2 else os.path.join(ROOT, 'game', 'resx')
     xbe = os.path.join(os.path.dirname(resx), 'default.xbe')
     if cmd in ('status', 'apply', 'revert') and not os.path.isfile(xbe):
