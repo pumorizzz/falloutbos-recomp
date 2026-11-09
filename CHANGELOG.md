@@ -29,6 +29,9 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
   size, full screen, MSAA and the frame-rate limit (30, 60 or 120), then the game; remembered in `bin\launcher.ini`.
 
 ### Fixed (GPU rendering and play)
+- Hitches of 60-80 ms on the GPU path when new textures came into view (the
+  first streets of Carbon): textures decode ~18x faster and DXT goes to the
+  GPU as BC; the same frames now stay at 16-19 ms.
 - Particles were not drawn at all (point sprites): steam, laser glow,
   radiation pools, smoke, the shadow atlas.
 - Red, oversaturated crates and target robots: 0 x inf is 0 in `MUL`/`MAD`, as
