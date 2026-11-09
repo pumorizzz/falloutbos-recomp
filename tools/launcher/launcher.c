@@ -139,7 +139,7 @@ static int copy_set_file(HWND owner, const char *src, const char *dst)
 static int set_language(HWND owner)
 {
     const char *lang = k_lang[selected(s_lang)];
-    char src[MAX_PATH], dst[MAX_PATH], msg[MAX_PATH + 64];
+    char src[MAX_PATH], dst[MAX_PATH];
     int i;
 
     if (strcmp(lang, "ru") == 0 && !russian_present()) {
@@ -148,6 +148,12 @@ static int set_language(HWND owner)
                     MB_ICONERROR);
         return 0;
     }
+    /* The inventory's labels live in the XBE's .rdata: default.xbe.en/.ru,
+     * the same code otherwise (tools/russian.py, xbe_variants). */
+    snprintf(src, sizeof src, "%s\\game\\default.xbe.%s", s_root, lang);
+    snprintf(dst, sizeof dst, "%s\\game\\default.xbe", s_root);
+    if (!copy_set_file(owner, src, dst))
+        return 0;
     for (i = 0; i < COUNT(k_sdb); i++) {
         snprintf(src, sizeof src, "%s\\game\\resx\\%s.%s", s_root, k_sdb[i], lang);
         snprintf(dst, sizeof dst, "%s\\game\\resx\\%s", s_root, k_sdb[i]);
@@ -186,7 +192,6 @@ static int set_language(HWND owner)
             FindClose(hc);
         }
     }
-    (void)msg;
     return 1;
 }
 

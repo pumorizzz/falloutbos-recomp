@@ -98,7 +98,9 @@ Switching back and forth needs no rebuild.
   each checked against the original; that is why the regenerate-and-build step is
   needed.
 - **Both languages stay installed.** Every `.sdb` has `.sdb.en` and `.sdb.ru` side
-  by side; the launcher copies the chosen set into place before each start.
+  by side, and `default.xbe` has `.en` and `.ru` (the same code, the inventory
+  labels in either language); the launcher copies the chosen set into place before
+  each start.
 - **Stays English:** level names (save names), the folder name of each level
   (`TUTORIAL` is a path), text drawn into textures (the compass letters) and movies
   (the T. S. Eliot quote in the intro), and the credits.

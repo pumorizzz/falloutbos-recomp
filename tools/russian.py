@@ -572,6 +572,19 @@ def xbe_patch(xbe, to_new):
     return 1 if code or text else 0
 
 
+def xbe_variants(xbe):
+    """default.xbe.en and .ru: the same code (all XBE_SITES applied), the
+    inventory strings in English or Russian. The launcher copies one over
+    default.xbe by its Language choice; they differ only in .rdata, which the
+    runtime maps at start-up, so neither needs regenerating."""
+    d = bytearray(open(xbe, 'rb').read())
+    for lang in ('en', 'ru'):
+        for va, orig, new in xbe_text_sites():
+            o = xbe_offset(d, va)
+            d[o:o + len(orig)] = new if lang == 'ru' else orig
+        open(xbe + '.' + lang, 'wb').write(d)
+
+
 def main(argv):
     cmd = argv[1] if len(argv) > 1 else 'status'
     if cmd == 'export':
@@ -585,21 +598,27 @@ def main(argv):
         sdb = [n for n in SDBS if same(os.path.join(resx, n), os.path.join(resx, n + '.ru'))]
         fnt = os.path.exists(os.path.join(resx, 'sfx.clp.en'))
         d = open(xbe, 'rb').read()
-        o = xbe_offset(d, XBE_SITES[0][0])
-        fix = d[o:o + 4] == XBE_SITES[0][2]
+
+        def patched(sites):
+            return sum(1 for va, _, new in sites if d[xbe_offset(d, va):xbe_offset(d, va) + len(new)] == new)
         print(f'russian: text {"in Russian: " + ", ".join(sdb) if sdb else "English"}; '
               f'fonts {"with Cyrillic" if fnt else "original"}; '
-              f'default.xbe {"patched" if fix else "original"}')
+              f'default.xbe code fixes {patched(XBE_SITES)}/{len(XBE_SITES)}, '
+              f'inventory strings {"Russian" if patched(xbe_text_sites()) else "English"}')
         return 0
     if cmd == 'apply':
         x = xbe_patch(xbe, True)
         if x < 0:
             return 1
+        xbe_variants(xbe)
         n = sdb_apply(resx) + fonts_apply(resx) + x
         print('russian: applied' if n else 'russian: nothing to do')
         return 3 if n else 0
     if cmd == 'revert':
         x = xbe_patch(xbe, False)
+        for s in ('.en', '.ru'):
+            if os.path.exists(xbe + s):
+                os.remove(xbe + s)
         n = fonts_revert(resx) + max(x, 0)
         for p in [os.path.join(resx, name) for name in SDBS] + level_sdbs(resx):
             if os.path.exists(p + '.en'):
