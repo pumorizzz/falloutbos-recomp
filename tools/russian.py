@@ -10,37 +10,36 @@ hash table, string count), the strings, then a power-of-two hash table of
 .sdb keeps every slot and hash and only gets new offsets.
 
 The fonts (gamefonta/gamefontmed/gamefontsmall.fnt) are inside sfx.clp. The
-renderer of the wide strings looks a glyph up by its Unicode code point in the
-font's glyph table (0x71150), so Cyrillic needs no change to the game: each
-font gets 71 more glyphs (U+0410..U+044F, Ё, ё, « » – — №) drawn from PT Sans
-in the font's own style (white, 1 px dark outline) on rows added under its
-atlas.  The text keeps the game's own button icons: { | } ~ and U+0080..U+008F
-(written \\u0082 and so on in the TSV files).
-The new fonts go at the end of sfx.clp; only their three entries in the
-clump's table of contents and its CRC32 change.
+wide renderer looks a glyph up by its code (0x71150), the 8-bit one through a
+byte map. Each font gets 71 glyphs (А-я, Ё, ё, « » – — №) drawn from PT Sans in
+its own style (white, 1 px dark outline) on rows added under its atlas, under
+their Unicode codes and again under the codes of CP1251. The new fonts go at
+the end of sfx.clp; only three entries of the clump's table of contents and
+its CRC32 change. The text keeps the game's button icons: { | } ~ and
+U+0080..U+008F (written \\u0082 and so on in the TSV files).
 
 The text is written in cp1251 code points, not U+04xx (see CP1251): several
-of the game's paths keep only a byte. The fonts draw those code points with
-the Cyrillic glyphs. Besides gtext/global/deftexte, each level's own .sdb
-(resx/c*/<LEVEL>/<LEVEL>.sdb: object and enemy names) gets the names from
-tools/ru/global_names.py, and twelve inventory strings inside the XBE are
-rewritten in place (XBE_TEXT).
+of the game's paths keep only a byte. Besides gtext/global/deftexte, each
+level's own .sdb (resx/c*/<LEVEL>/<LEVEL>.sdb: object and enemy names) gets
+the names from tools/ru/global_names.py, and twelve inventory strings inside
+the XBE are rewritten in place (XBE_TEXT).
 
 Translations: tools/ru/<name>.tsv and tools/ru/<name>/*.tsv, lines
 "hash<TAB>text" (hash as in the export, \\n for a line break). A string with
 no line keeps its English.
 
-One fix in the code: the game's wide sprintf keeps only the low byte of the
-format's own characters (see XBE_SITES), so `apply` also patches 4 bytes of
-game/default.xbe, checked against the original; regenerate and build after
-it (./regen.sh, cmake --build). widescreen.py's revert restores its 4:3 copy
-without this patch: run `apply` again after it.
+Code fixes (XBE_SITES, ten 4-byte sites of game/default.xbe, each checked
+against its original bytes): the wide sprintf kept only the low byte of the
+format's own characters, and the game's 8-bit-to-wide copies widened with a
+sign. Regenerate and build after them (./regen.sh --disasm, cmake --build).
+widescreen.py's revert restores its 4:3 copy without them: run `apply` again.
 
 `apply` keeps the originals: <name>.sdb.en, and sfx.clp.en (its size, header
-and table of contents); `revert` puts them and the XBE bytes back. It also
-leaves the Russian set as <name>.sdb.ru: bin/FalloutLauncher.exe copies the
-.en or .ru set over <name>.sdb by its Language choice. The fonts and the XBE
-fix suit English as well (Latin glyphs and ASCII are unchanged). Exit status: 0 nothing to
+and table of contents); `revert` puts them and the XBE bytes back. It leaves
+both languages installed: every .sdb as .sdb.en and .sdb.ru, default.xbe as
+default.xbe.en and .ru (the same code, the inventory strings in English or
+Russian). bin/FalloutLauncher.exe copies one set into place by its Language
+choice; the fonts and the code fixes suit English as well. Exit status: 0 nothing to
 do, 3 files changed, 1 error.
 """
 import os
@@ -76,10 +75,6 @@ CP1251['я'] = 0x9F
 def to_game(text):
     return ''.join(chr(CP1251[c]) if c in CP1251 else c for c in text)
 
-
-def from_game(text):
-    back = {chr(v): k for k, v in CP1251.items()}
-    return ''.join(back.get(c, c) for c in text)
 
 
 # ---- .sdb ---------------------------------------------------------------------
@@ -455,6 +450,15 @@ def fonts_apply(resx):
     clp = os.path.join(resx, 'sfx.clp')
     with open(clp, 'r+b') as f:
         hdr, toc_at, toc, slots = clp_toc(f)
+        # Without sfx.clp.en the fonts must be the original ones: drawing
+        # Cyrillic into fonts that have it already would stack a second set.
+        for name in FONTS:
+            _, (_, sec, _, n, _) = clp_find(toc, slots, name)
+            f.seek(sec << 12)
+            if any(g[0] == 0x410 for g in Font(f.read(n)).glyphs):
+                print(f'russian: {name} in sfx.clp has Cyrillic already but sfx.clp.en is gone; '
+                      'restore the original sfx.clp from the disc first')
+                return 0
         f.seek(0, 2)
         size = f.tell()
         open(clp + '.en', 'wb').write(struct.pack('<Q', size) + hdr + toc)

@@ -7,6 +7,10 @@ here are display names. The same name repeats once per character, so it is
 translated by text, not by hash:
 
     py -3 tools/ru/global_names.py [game/resx]
+
+tools/russian.py also applies NAMES by text to each level's own .sdb
+(resx/c*/<LEVEL>/<LEVEL>.sdb: enemies, people, objects). Never list a name the
+game uses as an identifier there (a level folder such as TUTORIAL).
 """
 import os
 import sys
