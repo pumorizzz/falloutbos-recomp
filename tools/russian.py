@@ -505,7 +505,8 @@ for _va, _modrm in ((0x00014C32, 'C9'), (0x00030560, 'D2'), (0x000306D0, 'D2'),
                     (0x0003B501, 'D1'), (0x0004F320, 'D2'), (0x00072AF4, 'C0')):
     XBE_SITES.append((_va, bytes.fromhex('660FBE' + _modrm), bytes.fromhex('660FB6' + _modrm)))
 
-# The inventory's own 8-bit strings in .rdata, rewritten in place in cp1251
+# The game's own 8-bit strings in .rdata (the inventory's labels, the loading
+# screen's caption), rewritten in place in cp1251
 # (they come out as code points and the fonts map them, see CP1251): VA, the
 # room (the string, its NUL and the zeros up to the next one), English,
 # Russian. Data, not code: the runtime maps .rdata from the XBE at start-up,
@@ -581,7 +582,7 @@ def xbe_patch(xbe, to_new):
 
 def xbe_variants(xbe):
     """default.xbe.en and .ru: the same code (all XBE_SITES applied), the
-    inventory strings in English or Russian. The launcher copies one over
+    XBE_TEXT strings in English or Russian. The launcher copies one over
     default.xbe by its Language choice; they differ only in .rdata, which the
     runtime maps at start-up, so neither needs regenerating."""
     d = bytearray(open(xbe, 'rb').read())

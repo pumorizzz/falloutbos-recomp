@@ -28,8 +28,8 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
 - Russian: `tools/russian.py apply` translates `gtext.sdb` (dialogue, quests,
   menus, hints), the names in `global.sdb`/`deftexte.sdb` and in each level's own
   `.sdb`, and the inventory labels and the loading screen's `Loading...` inside
-  the XBE, and adds Cyrillic drawn from
-  PT Sans to the three fonts in `sfx.clp`; `revert` restores English. The text
+  the XBE, and adds Cyrillic drawn from PT Sans to the three fonts in `sfx.clp`;
+  `revert` restores English. The text
   goes in as cp1251 code points, since several of the game's paths keep a byte
   (`я` on 0x9F: 0xFF in Nadia's name broke her model). Ten 4-byte code fixes in
   `default.xbe`: the wide `sprintf` kept only the low byte of a format's own
