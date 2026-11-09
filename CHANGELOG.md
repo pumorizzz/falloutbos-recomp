@@ -112,6 +112,9 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
   rounds an address of 32-64 MB to a multiple of 4. The Russian name started
   2 bytes off that, and the prompt read the end of the string before it.
   `russian.py` now starts every `.sdb` string on 4 bytes; run `apply` again.
+- Russian names of items, characters, enemies and objects follow the
+  original's capitals ("Руби, Проститутка Пустоши", "Силовой Шлем"), and the
+  "Wasteland" the translation had dropped is back in nine of them.
 - The launcher set the Russian XBE strings into a `default.xbe` without
   `russian.py`'s code fixes (the disc unpacked again, the `.en`/`.ru` set left),
   and the inventory's labels came out cut to "..."; it now refuses and asks for
