@@ -127,8 +127,20 @@ if (-not (Test-Path (Join-Path $Root 'game\default.xbe'))) {
     Run 'unpacking your disc into game\' { Push-Location $Toolkit; py -3 -m tools.xiso unpack $path -o (Join-Path $Root 'game'); $c = $LASTEXITCODE; Pop-Location; $global:LASTEXITCODE = $c }
 } else { Say "Disc already unpacked into game\" }
 
+# ---- 3b. widescreen ------------------------------------------------------------
+# Nemesis2000's 16:9 patch, mapped onto the USA image (tools\widescreen.py).
+# The original is kept as game\default.xbe.4x3; "py -3 tools\widescreen.py
+# revert" puts it back (then delete src\game\recomp\gen and run Setup again).
+$wsOut = @(py -3 (Join-Path $Root 'tools\widescreen.py') apply 2>&1 | ForEach-Object { "$_" })
+$wsCode = $LASTEXITCODE
+$wsOut | Out-File $Log -Append -Encoding utf8
+$WidescreenChanged = $false
+if ($wsCode -eq 3) { Say "Patched game\default.xbe for 16:9"; $WidescreenChanged = $true }
+elseif ($wsCode -eq 0) { Say "game\default.xbe is already 16:9" }
+else { Say "16:9 patch not applied: $($wsOut | Select-Object -Last 1)" }
+
 # ---- 4. generate the C ---------------------------------------------------------
-if (-not (Test-Path (Join-Path $Root 'src\game\recomp\gen\recomp_funcs.h'))) {
+if ($WidescreenChanged -or -not (Test-Path (Join-Path $Root 'src\game\recomp\gen\recomp_funcs.h'))) {
     $env:RECOMP = $Toolkit
     Run 'generating C from your disc (about 3 minutes)' { & $bash ./regen.sh --disasm }
 } else { Say "Generated C already present (delete src\game\recomp\gen to redo)" }
@@ -136,7 +148,7 @@ if (-not (Test-Path (Join-Path $Root 'src\game\recomp\gen\recomp_funcs.h'))) {
 # ---- 5. build ------------------------------------------------------------------
 # A toolkit update needs a rebuild; the build itself regenerates gen/ when the
 # toolkit's codegen changed (src/game/CMakeLists.txt).
-if ($ToolkitUpdated -or -not (Test-Path (Join-Path $Root 'bin\fbos.exe'))) {
+if ($ToolkitUpdated -or $WidescreenChanged -or -not (Test-Path (Join-Path $Root 'bin\fbos.exe'))) {
     Run 'configuring the build' { cmake -S . -B build-msvc -A x64 "-DXBOXRECOMP_DIR=$Toolkit" }
     Run 'building (several minutes; your machine will be busy)' { cmake --build build-msvc --config Release }
 } else { Say "Already built: bin\fbos.exe" }

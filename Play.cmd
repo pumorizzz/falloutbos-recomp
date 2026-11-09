@@ -10,4 +10,7 @@ rem CPU rasteriser. Without a D3D11 device it falls back to the CPU itself.
 if not defined RECOMP_GPU_RASTER set RECOMP_GPU_RASTER=1
 rem F9 records your input (on/off), F10 plays the recording back.
 if not defined RECOMP_PAD_RECORD set RECOMP_PAD_RECORD=saves\pad_path.txt
+rem The picture is 2560x1440 (shrunk to fit the screen in a window); F11
+rem switches to borderless full screen. The game still renders 640x480.
+if not defined RECOMP_FB_SIZE set RECOMP_FB_SIZE=2560x1440
 bin\fbos.exe %*

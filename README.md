@@ -35,6 +35,9 @@ hard disk as it goes.
   swapchain, capped at 60 fps. With the cap lifted, Carbon's spawn point
   runs at about 146 fps and Ruby's bar at about 130 fps (RTX 3080 Ti); the
   CPU rasteriser, still there with `RECOMP_GPU_RASTER=0`, manages about 17.
+- **16:9.** `Setup.cmd` applies Nemesis2000's widescreen patch, mapped onto
+  the USA disc (`tools/widescreen.py`); the picture opens at 2560x1440 (fitted
+  to the screen in a window, F11 for full screen).
 - **Checked frame by frame against a PS2 playthrough** of the same places
   (there is no Xbox capture to compare with): steam, lasers, radiation pools,
   pit, crates, character shadows, grenade explosions, Carbon's streets, bar
@@ -162,6 +165,25 @@ Everything below lives in the toolkit fork's `gpu-rastr` branch unless it says
 - 60 fps cap at the flip by default (`RECOMP_FPS_LIMIT`); without it menus ran
   at up to 1000 fps and menu input misbehaved.
 
+### Widescreen and display
+
+- **16:9** (port, `tools/widescreen.py`): Nemesis2000's widescreen patch for
+  the PAL disc (Jay's Magic Patcher), mapped by meaning onto the USA image --
+  the projection's 320.0 half-height becomes 240.0 at six call sites, the
+  camera's 4:3 aspect becomes 16:9 at two, and three 4x4 matrices get 372.0
+  instead of 496.0 in m00 (the USA build loads that one from `.rdata` with
+  SSE, so the load and both stores are rewritten as immediate stores). Every
+  site is checked against its original bytes; another disc revision is left
+  alone. The game draws 16:9 anamorphically into its 640x480 buffer, as on an
+  Xbox set to widescreen, and the port shows that frame at 16:9.
+  `py -3 tools/widescreen.py revert` restores the 4:3 image (kept as
+  `game\default.xbe.4x3`); regenerate and build afterwards.
+- **Picture size and aspect** (toolkit): the window and the swap chain
+  follow the window's size, the frame is filtered into the largest rectangle
+  of the display aspect with bars around it (`RECOMP_FB_ASPECT`,
+  `RECOMP_FB_SIZE`), and F11 switches to borderless full screen. The game
+  itself still renders 640x480; a higher internal resolution is a later step.
+
 ### Setup and play (port)
 
 - `Setup.cmd`: checks and (after asking) installs the prerequisites, finds the
@@ -206,7 +228,8 @@ Nothing from the game is downloaded or included.
 2. Double-click **`Setup.cmd`**. It checks for Python, Git, CMake and the
    Visual Studio C++ build tools, and **asks before installing** anything
    missing (with what, why and how big). It finds your disc image or asks for
-   it, then unpacks it, generates the C, and builds. Expect 10-20 minutes the
+   it, then unpacks it, applies the 16:9 patch, generates the C, and builds.
+   An existing setup that runs it again is patched and rebuilt. Expect 10-20 minutes the
    first time, most of it the build. If it stops, it says why in one sentence
    and keeps the details in `setup.log`; running it again resumes.
 3. Double-click **`Play.cmd`**. An XInput controller (Xbox 360/One pad) is
@@ -214,6 +237,8 @@ Nothing from the game is downloaded or included.
    Z/X/C/V = A/B/X/Y, Enter = Start, Backspace = Back, 1/3 = triggers.
    F9 starts and stops recording what you do into `saves\pad_path.txt`; F10
    plays that recording back from where you stand, e.g. to repeat a route.
+   F11 switches between the window and borderless full screen; the picture
+   is 2560x1440 (`RECOMP_FB_SIZE`).
    It draws on the GPU (Direct3D 11). For the CPU rasteriser, run it from a
    console after `set RECOMP_GPU_RASTER=0`.
 
@@ -243,7 +268,12 @@ install. After installing anything, open a new terminal so PATH picks it up.
    (cd deps/xboxrecomp && py -3 -m tools.xiso unpack "/path/to/Fallout - Brotherhood of Steel (USA).iso" -o ../../game)
    ```
 
-   Expected: `extracted 491 files to ../../game`.
+   Expected: `extracted 491 files to ../../game`. Then the 16:9 patch
+   (optional; leave it out for 4:3):
+
+   ```bash
+   py -3 tools/widescreen.py apply
+   ```
 
 3. Generate the C (about 3 minutes, most of it the disassembler):
 
@@ -280,6 +310,9 @@ install. After installing anything, open a new terminal so PATH picks it up.
 | `RECOMP_PB_EXEC=1` | execute the title's NV2A pushbuffer, so it actually draws |
 | `RECOMP_FB_WINDOW=1` | show the framebuffer in a window. Off by default: runs are headless |
 | `RECOMP_GPU_RASTER=1` \| `warp` \| `compare` | rasterise on the GPU (Direct3D 11) instead of the CPU: `1` a hardware adapter (WARP if none), `warp` the WARP software adapter, `compare` both paths draw and each flip prints how far the GPU differs from the software result, `0` the CPU. `Play.cmd` sets `1` unless it is already set; `fbos.exe` alone draws on the CPU. Needs `RECOMP_PB_EXEC=1`; without a D3D11 device it stays on the CPU |
+| `RECOMP_FB_SIZE=<w>x<h>` | the picture's size: the window opens at it, shrunk (aspect kept) to fit the screen's work area. `Play.cmd` sets `2560x1440`; by default the frame's height at the display aspect |
+| `RECOMP_FB_ASPECT=<n>:<d>` | the aspect the 640x480 frame is shown at, bars around it: `16:9` by itself for a widescreen-patched `default.xbe`, `4:3` otherwise |
+| `RECOMP_FB_FULLSCREEN=1` | start in borderless full screen; F11 toggles it at any time |
 | `RECOMP_FPS_LIMIT=<hz>` | cap the frame rate at the flip, standing in for vblank: 60 by default, `0` turns it off. Without it menus and loading screens run at up to 1000 fps and menu input misbehaves |
 | `RECOMP_VSH_THREADS=N` | threads for a batch's vertex programs, the executor included (default: half the logical processors, at most 16); `1` runs them all on the executor |
 | `RECOMP_PB_WALK=dma` | walk the pushbuffer ring as the DMA engine does; the port sets it, since the toolkit's default walk loses commands at the ring's wrap |

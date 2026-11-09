@@ -16,6 +16,12 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
   bit for bit as on one: by Ruby's bar, uncapped, 66 -> 130 fps.
 - README: what the fork fixed, the checks, and screenshots of the Tutorial and
   Carbon.
+- 16:9: `tools/widescreen.py` maps Nemesis2000's PAL widescreen patch onto the
+  USA image (11 sites, each checked; `revert` restores 4:3); `Setup.cmd`
+  applies it and regenerates. The window shows the frame at 16:9 by itself.
+- The picture opens at 2560x1440 (`RECOMP_FB_SIZE`, fitted to the screen),
+  filtered into the display aspect with bars (`RECOMP_FB_ASPECT`); F11 for
+  borderless full screen.
 
 ### Fixed (GPU rendering and play)
 - Particles were not drawn at all (point sprites): steam, laser glow,

@@ -11,6 +11,11 @@
   17. What it fixed on the way is in the README, "What this fork fixed".
 
 ## Next
+- Internal resolution: the picture is 2560x1440 and 16:9 now, but the game
+  still renders 640x480 (the scene at 1280x480) and the frame is scaled up.
+  Rendering every target larger in the D3D11 back end (4x3 for 2560x1440:
+  targets and depth, viewport and scissor, point sizes, targets sampled as
+  textures, write-back to guest RAM scaled down) would give real detail.
 - Play past Carbon: later chapters have not been seen yet. Record the pass;
   compare with the PS2 playthrough where one covers the same place.
 - Load a saved game: saves are written, loading has not been tried.

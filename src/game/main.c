@@ -88,6 +88,37 @@ static BOOL load_xbe(const char *path, void **out_data, size_t *out_size)
     return TRUE;
 }
 
+void xbox_FramebufferWindowSetAspect(uint32_t n, uint32_t d);   /* fb_present.c */
+
+/* Is this image patched to 16:9 (tools/widescreen.py)? The camera's aspect
+ * at 0x00089455, `push 1.7778` instead of `push 1.3333`, says so. The code
+ * that runs is the C generated from the image, so this assumes ./regen.sh
+ * ran after the patch; Setup.cmd sees to that. */
+static int xbe_is_widescreen(const void *xbe, size_t size)
+{
+    const uint8_t *d = (const uint8_t *)xbe;
+    const uint32_t va = 0x00089455u, aspect_16_9 = 0x3FE38E39u;
+    uint32_t base, n, at, i;
+
+    if (size < 0x124)
+        return 0;
+    memcpy(&base, d + 0x104, 4);
+    memcpy(&n, d + 0x11C, 4);
+    memcpy(&at, d + 0x120, 4);
+    for (i = 0; i < n; i++) {
+        uint32_t s[5], off = at - base + i * 56;     /* flags, va, vsize, raw, rsize */
+        if ((size_t)off + 20 > size)
+            return 0;
+        memcpy(s, d + off, sizeof s);
+        if (va >= s[1] && va + 4 <= s[1] + s[4] && (size_t)s[3] + (va - s[1]) + 4 <= size) {
+            uint32_t v;
+            memcpy(&v, d + s[3] + (va - s[1]), 4);
+            return v == aspect_16_9;
+        }
+    }
+    return 0;
+}
+
 /* Name the host address a fault happened at.
  *
  * Every generated function is a real symbol (sub_0009547C and so on), so the
@@ -410,6 +441,13 @@ int main(int argc, char **argv)
      * after about ten minutes, and crashed on the first allocation refused. */
     if (!getenv("RECOMP_HEAP_RECLAIM"))
         _putenv_s("RECOMP_HEAP_RECLAIM", "1");
+    /* Widescreen (tools/widescreen.py): the patched title draws 16:9
+     * anamorphically into its 640x480 buffer, so the window shows the frame
+     * at 16:9. RECOMP_FB_ASPECT overrides it. */
+    if (xbe_is_widescreen(xbe_data, xbe_size)) {
+        xbox_FramebufferWindowSetAspect(16, 9);
+        printf("Widescreen XBE: the window shows the frame at 16:9\n");
+    }
 
     /* .data is 5.4 MB virtual against 62 KB raw: the engine keeps its big
      * pools as zero-fill statics rather than heap. The default 64 MB map
