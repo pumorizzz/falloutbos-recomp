@@ -22,6 +22,9 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
 - The picture opens at 2560x1440 (`RECOMP_FB_SIZE`, fitted to the screen),
   filtered into the display aspect with bars (`RECOMP_FB_ASPECT`); F11 for
   borderless full screen.
+- Internal resolution and MSAA on the GPU path (`RECOMP_GPU_RASTER_SCALE`,
+  `RECOMP_GPU_RASTER_MSAA`): targets and depth drawn N times larger with
+  multisampling, read back to guest RAM averaged; `Play.cmd` uses 3x3 + 4x.
 
 ### Fixed (GPU rendering and play)
 - Particles were not drawn at all (point sprites): steam, laser glow,

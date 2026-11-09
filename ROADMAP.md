@@ -9,13 +9,17 @@
   60 fps cap lifted: Carbon spawn about 146 fps, Ruby's bar about 130 (66
   before the vertex programs ran on several threads); the CPU rasteriser about
   17. What it fixed on the way is in the README, "What this fork fixed".
+- 16:9 (Nemesis2000's patch mapped onto the USA image), a 2560x1440 picture
+  with borderless full screen, and an internal resolution with MSAA
+  (3x3 + 4x by default): edges and the scene drawn at 1920x1440.
 
 ## Next
-- Internal resolution: the picture is 2560x1440 and 16:9 now, but the game
-  still renders 640x480 (the scene at 1280x480) and the frame is scaled up.
-  Rendering every target larger in the D3D11 back end (4x3 for 2560x1440:
-  targets and depth, viewport and scissor, point sizes, targets sampled as
-  textures, write-back to guest RAM scaled down) would give real detail.
+- GPU time per pixel: with the internal resolution (3x3 + 4x MSAA by default)
+  the register-combiner ubershader runs on about ten times the pixels, and in
+  the menu 4x3 + 4x MSAA is down to about 85 fps uncapped. Cheaper pixels --
+  shader variants per combiner setup instead of one ubershader with loops and
+  an indexed register file, or a smaller scale for the scene the game already
+  draws twice as wide -- would make 4x3 hold 60 everywhere.
 - Play past Carbon: later chapters have not been seen yet. Record the pass;
   compare with the PS2 playthrough where one covers the same place.
 - Load a saved game: saves are written, loading has not been tried.

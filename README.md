@@ -35,9 +35,10 @@ hard disk as it goes.
   swapchain, capped at 60 fps. With the cap lifted, Carbon's spawn point
   runs at about 146 fps and Ruby's bar at about 130 fps (RTX 3080 Ti); the
   CPU rasteriser, still there with `RECOMP_GPU_RASTER=0`, manages about 17.
-- **16:9.** `Setup.cmd` applies Nemesis2000's widescreen patch, mapped onto
-  the USA disc (`tools/widescreen.py`); the picture opens at 2560x1440 (fitted
-  to the screen in a window, F11 for full screen).
+- **16:9 and 1440p.** `Setup.cmd` applies Nemesis2000's widescreen patch,
+  mapped onto the USA disc (`tools/widescreen.py`); the GPU renders at three
+  times the game's resolution with 4x MSAA, and the picture opens at
+  2560x1440 (fitted to the screen in a window, F11 for full screen).
 - **Checked frame by frame against a PS2 playthrough** of the same places
   (there is no Xbox capture to compare with): steam, lasers, radiation pools,
   pit, crates, character shadows, grenade explosions, Carbon's streets, bar
@@ -181,8 +182,17 @@ Everything below lives in the toolkit fork's `gpu-rastr` branch unless it says
 - **Picture size and aspect** (toolkit): the window and the swap chain
   follow the window's size, the frame is filtered into the largest rectangle
   of the display aspect with bars around it (`RECOMP_FB_ASPECT`,
-  `RECOMP_FB_SIZE`), and F11 switches to borderless full screen. The game
-  itself still renders 640x480; a higher internal resolution is a later step.
+  `RECOMP_FB_SIZE`), and F11 switches to borderless full screen.
+- **Internal resolution and anti-aliasing** (toolkit, `RECOMP_GPU_RASTER_SCALE`,
+  `RECOMP_GPU_RASTER_MSAA`): every render target and depth buffer is drawn
+  N times larger with multisampling; the viewport scales the geometry, a
+  target the game samples (its own downsample of the scene) is read at the
+  high resolution, and the presenter shows it. Rows the CPU writes go up and
+  writebacks come down averaged, so the game and guest RAM still see 640x480.
+  `Play.cmd` renders at 3x3 with 4x MSAA. The cost is GPU time per pixel:
+  uncapped in the menu, 1x about 1,800 fps, 2x3 + 4x MSAA 177, 3x3 + 4x MSAA
+  122, 4x3 + 4x MSAA 85 (RTX 3080 Ti; Fallout already draws its scene twice as
+  wide, so 4x3 is a 5120x1440 scene).
 
 ### Setup and play (port)
 
@@ -238,7 +248,8 @@ Nothing from the game is downloaded or included.
    F9 starts and stops recording what you do into `saves\pad_path.txt`; F10
    plays that recording back from where you stand, e.g. to repeat a route.
    F11 switches between the window and borderless full screen; the picture
-   is 2560x1440 (`RECOMP_FB_SIZE`).
+   is 2560x1440 (`RECOMP_FB_SIZE`), rendered at 3x the game's resolution
+   with 4x MSAA (`RECOMP_GPU_RASTER_SCALE`, `RECOMP_GPU_RASTER_MSAA`).
    It draws on the GPU (Direct3D 11). For the CPU rasteriser, run it from a
    console after `set RECOMP_GPU_RASTER=0`.
 
@@ -310,6 +321,8 @@ install. After installing anything, open a new terminal so PATH picks it up.
 | `RECOMP_PB_EXEC=1` | execute the title's NV2A pushbuffer, so it actually draws |
 | `RECOMP_FB_WINDOW=1` | show the framebuffer in a window. Off by default: runs are headless |
 | `RECOMP_GPU_RASTER=1` \| `warp` \| `compare` | rasterise on the GPU (Direct3D 11) instead of the CPU: `1` a hardware adapter (WARP if none), `warp` the WARP software adapter, `compare` both paths draw and each flip prints how far the GPU differs from the software result, `0` the CPU. `Play.cmd` sets `1` unless it is already set; `fbos.exe` alone draws on the CPU. Needs `RECOMP_PB_EXEC=1`; without a D3D11 device it stays on the CPU |
+| `RECOMP_GPU_RASTER_SCALE=<n>` \| `<x>x<y>` | internal resolution on the GPU path: every render target and depth buffer is that many times the surface (1-8 each way), so geometry, edges and the title's own downsample come out sharp. `3` renders the 640x480 frame at 1920x1440, `4x3` at 2560x1440. What goes back to guest RAM stays 640x480 (blocks averaged). `Play.cmd` sets `3` |
+| `RECOMP_GPU_RASTER_MSAA=<n>` | multisample anti-aliasing on the GPU path, 2, 4 or 8 samples (lowered to what the GPU has). `Play.cmd` sets `4` |
 | `RECOMP_FB_SIZE=<w>x<h>` | the picture's size: the window opens at it, shrunk (aspect kept) to fit the screen's work area. `Play.cmd` sets `2560x1440`; by default the frame's height at the display aspect |
 | `RECOMP_FB_ASPECT=<n>:<d>` | the aspect the 640x480 frame is shown at, bars around it: `16:9` by itself for a widescreen-patched `default.xbe`, `4:3` otherwise |
 | `RECOMP_FB_FULLSCREEN=1` | start in borderless full screen; F11 toggles it at any time |
