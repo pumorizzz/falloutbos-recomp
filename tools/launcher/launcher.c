@@ -164,9 +164,11 @@ static void xbe_error(HWND owner, const char *what)
 
 /* The ten 4-byte code fixes of tools/russian.py (XBE_SITES, keep the two
  * lists alike): the wide sprintf's whole-character copy and nine movsx ->
- * movzx. Without them the Russian strings come out cut to "..." -- a disc
- * unpacked again over a game whose .en/.ru set stayed. widescreen.py does not
- * touch these. */
+ * movzx. Without them the Russian strings come out cut to "...". The code
+ * that runs is bin\fobos.exe, built from the C generated from default.xbe;
+ * regen.sh marks it with how many of the fixes that XBE had (exe_code_fixes).
+ * An exe from before the mark leaves only default.xbe to look at: these
+ * sites there. widescreen.py does not touch them. */
 static const DWORD k_code_va[] = {
     0x00072D46, 0x00014C32, 0x00030560, 0x000306D0, 0x0003B192,
     0x0003B3A1, 0x0003B4A0, 0x0003B501, 0x0004F320, 0x00072AF4,
@@ -194,6 +196,34 @@ static long xbe_offset(const unsigned char *d, DWORD n, DWORD va)
     return -1;
 }
 
+/* "FBOS-RU-CODE-FIXES n/10" in bin\fobos.exe (tools/russian.py code-mark): n,
+ * or -1 for an exe without the mark or one that cannot be read. */
+static int exe_code_fixes(void)
+{
+    static const char tag[] = "FBOS-RU-CODE-FIXES ";
+    char p[MAX_PATH];
+    unsigned char *d;
+    DWORD n = 0, i, len = (DWORD)(sizeof tag - 1);
+    int got = -1;
+
+    snprintf(p, sizeof p, "%s\\bin\\fobos.exe", s_root);
+    if ((d = read_all(p, &n)) == NULL)
+        return -1;
+    for (i = 0; n >= len + 5 && i <= n - len - 5; i++)
+        if (d[i] == 'F' && memcmp(d + i, tag, len) == 0) {
+            char s[8], *e;
+            long have;
+            memcpy(s, d + i + len, 5);
+            s[5] = 0;
+            have = strtol(s, &e, 10);
+            if (e != s && *e == '/' && strtol(e + 1, NULL, 10) == COUNT(k_code_va))
+                got = (int)have;
+            break;
+        }
+    free(d);
+    return got;
+}
+
 /* The inventory's labels and the loading screen's "Loading..." are 8-bit
  * strings in the XBE's .rdata. default.xbe.en and .ru (tools/russian.py,
  * xbe_variants) differ only in those bytes, so exactly those bytes of
@@ -206,7 +236,7 @@ static int set_xbe_strings(HWND owner, const char *lang)
     char cur_p[MAX_PATH], en_p[MAX_PATH], ru_p[MAX_PATH], tmp_p[MAX_PATH];
     unsigned char *cur, *en, *ru, *want;
     DWORD n_cur = 0, n_en = 0, n_ru = 0, i, changed = 0;
-    int ok = 0;
+    int ok = 0, fixes;
 
     snprintf(cur_p, sizeof cur_p, "%s\\game\\default.xbe", s_root);
     snprintf(en_p, sizeof en_p, "%s.en", cur_p);
@@ -226,8 +256,18 @@ static int set_xbe_strings(HWND owner, const char *lang)
         xbe_error(owner, "it is not the image its .en/.ru set was made from.");
         goto out;
     }
-    /* Russian needs the code fixes in place; English is the original. */
-    if (want == ru)
+    /* Russian needs the code fixes in the game; English is the original. */
+    if (want == ru && (fixes = exe_code_fixes()) >= 0) {
+        if (fixes != COUNT(k_code_va)) {
+            MessageBoxA(owner, "bin\\fobos.exe was built from a default.xbe without the code "
+                               "fixes of tools\\russian.py, and the Russian text would come out "
+                               "cut to \"...\". Run\n\n"
+                               "py -3 tools\\russian.py apply\n./regen.sh\n"
+                               "cmake --build build-msvc --config Release",
+                        "Fallout: Brotherhood of Steel", MB_ICONERROR);
+            goto out;
+        }
+    } else if (want == ru)
         for (i = 0; i < (DWORD)COUNT(k_code_va); i++) {
             long o = xbe_offset(cur, n_cur, k_code_va[i]);
             if (o < 0 || (DWORD)o + 4 > n_cur || memcmp(cur + o, en + o, 4) != 0) {

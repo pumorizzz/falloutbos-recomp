@@ -111,6 +111,12 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
   and the inventory's labels came out cut to "..."; it now refuses and asks for
   `py -3 tools\russian.py apply`. English still starts. It also keeps a
   `RECOMP_GPU_RASTER` set beforehand, as `Play.cmd` does.
+- That check looked at `default.xbe`, but the code that runs is `bin\fobos.exe`,
+  built from the generated C: it refused a game built before the disc was
+  unpacked again, and passed one not rebuilt after `apply`. `regen.sh` now
+  builds into the C a mark of the code fixes the XBE had
+  (`russian.py code-mark`, `gen/recomp_fbos_mark.c`), and the launcher reads it
+  from `bin\fobos.exe`; an exe from before the mark still gets the XBE check.
 - A fresh clone with no `src/game/recomp/gen/` built nothing and failed at the
   link: CMake now runs `regen.sh` when `game/default.xbe` is there, and stops
   with a plain message when it is not.

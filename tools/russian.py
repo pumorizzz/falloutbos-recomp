@@ -3,6 +3,7 @@
 
     py -3 tools/russian.py [apply|revert|status] [path/to/game/resx]
     py -3 tools/russian.py export [outdir]      English strings, one TSV per .sdb
+    py -3 tools/russian.py code-mark <out.c>    regen.sh: the code fixes the C has
 
 The text is in game/resx/*.sdb, already UTF-16: a header (0x5DB, offset of the
 hash table, string count), the strings, then a power-of-two hash table of
@@ -679,6 +680,32 @@ def xbe_variants(xbe):
             write_file(out, d)
 
 
+def code_mark(xbe, out):
+    """regen.sh, after generating the C: write <out>, a C file whose string
+    says how many of XBE_SITES the XBE had. It is built into bin/fobos.exe,
+    and the launcher reads it there: the code that runs is the generated C,
+    so the XBE on disk alone cannot say whether the game has the fixes."""
+    d = read_file(xbe)
+    n = 0
+    for va, _, new in XBE_SITES:
+        o = xbe_offset(d, va)
+        n += o is not None and d[o:o + len(new)] == new
+    src = ('/* tools/russian.py code-mark (regen.sh): of its code fixes, the ones\n'
+           ' * default.xbe had when this C was generated. FalloutLauncher.exe\n'
+           ' * reads the string from bin/fobos.exe. */\n'
+           '#ifdef _MSC_VER\n'
+           '#pragma comment(linker, "/INCLUDE:fbos_ru_code_fixes")\n'
+           '#define FBOS_USED\n'
+           '#else\n'
+           '#define FBOS_USED __attribute__((used))\n'
+           '#endif\n'
+           f'FBOS_USED const char fbos_ru_code_fixes[] = "FBOS-RU-CODE-FIXES {n}/{len(XBE_SITES)}";\n')
+    if not os.path.exists(out) or read_file(out) != src.encode('ascii'):
+        write_file(out, src.encode('ascii'))
+    print(f'russian: generated C has {n}/{len(XBE_SITES)} of the code fixes')
+    return 0
+
+
 def main(argv):
     try:
         return run(argv)
@@ -691,6 +718,8 @@ def run(argv):
     cmd = argv[1] if len(argv) > 1 else 'status'
     if cmd == 'export':
         return export(argv[2] if len(argv) > 2 else os.path.join(ROOT, 'scratch', 'ru', 'en'))
+    if cmd == 'code-mark':
+        return code_mark(os.path.join(ROOT, 'game', 'default.xbe'), argv[2])
     resx = argv[2] if len(argv) > 2 else os.path.join(ROOT, 'game', 'resx')
     xbe = os.path.join(os.path.dirname(resx), 'default.xbe')
     if cmd in ('status', 'apply', 'revert') and not os.path.isfile(xbe):

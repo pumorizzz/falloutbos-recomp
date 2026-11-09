@@ -90,6 +90,10 @@ if [ $status -ne 0 ]; then
     tail -25 "$FBOS/build/recomp.log" >&2
     exit $status
 fi
+# Which of tools/russian.py's code fixes this C was generated with, as a
+# string built into bin/fobos.exe: the launcher reads it before it sets the
+# Russian text (without them the inventory's labels are cut to "...").
+$PY "$FBOS/tools/russian.py" code-mark "$FBOS/src/game/recomp/gen/recomp_fbos_mark.c" || exit 1
 # recomp leaves unchanged files alone, so their times say nothing; this one
 # marks when gen/ last matched the toolkit (src/game/CMakeLists.txt).
 touch "$FBOS/src/game/recomp/gen/.regen_stamp"
