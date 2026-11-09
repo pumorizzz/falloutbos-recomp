@@ -506,11 +506,11 @@ for _va, _modrm in ((0x00014C32, 'C9'), (0x00030560, 'D2'), (0x000306D0, 'D2'),
     XBE_SITES.append((_va, bytes.fromhex('660FBE' + _modrm), bytes.fromhex('660FB6' + _modrm)))
 
 # The game's own 8-bit strings in .rdata (the inventory's labels, the loading
-# screen's caption), rewritten in place in cp1251
-# (they come out as code points and the fonts map them, see CP1251): VA, the
-# room (the string, its NUL and the zeros up to the next one), English,
-# Russian. Data, not code: the runtime maps .rdata from the XBE at start-up,
-# so these need no regeneration.
+# screen's caption), rewritten in place in cp1251 (they come out as code
+# points and the fonts map them, see CP1251): VA, the room (the string, its
+# NUL and the zeros up to the next one), English, Russian. Data, not code:
+# the runtime maps .rdata from the XBE at start-up, so these need no
+# regeneration.
 XBE_TEXT = [
     (0x000E402C, 20, 'Required Level: %d', 'Нужен уровень: %d'),
     (0x000E4040, 12, 'Cost: %d', 'Цена: %d'),

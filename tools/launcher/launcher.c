@@ -149,8 +149,8 @@ static int set_language(HWND owner)
         return 0;
     }
     /* The inventory's labels and the loading screen's "Loading..." live in
-     * the XBE's .rdata: default.xbe.en/.ru,
-     * the same code otherwise (tools/russian.py, xbe_variants). */
+     * the XBE's .rdata: default.xbe.en/.ru, the same code otherwise
+     * (tools/russian.py, xbe_variants). */
     snprintf(src, sizeof src, "%s\\game\\default.xbe.%s", s_root, lang);
     snprintf(dst, sizeof dst, "%s\\game\\default.xbe", s_root);
     if (!copy_set_file(owner, src, dst))
