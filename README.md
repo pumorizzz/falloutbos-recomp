@@ -91,9 +91,12 @@ Switching back and forth needs no rebuild.
 - **Fonts:** 71 glyphs (А–я, Ё, ё, « » – — №) are added to the game's three fonts
   inside `sfx.clp`. They are drawn from PT Sans (SIL OFL, `tools/ru/fonts`) in the
   fonts' own style, with the same white face and 1 px outline.
-- **One code fix:** the game's wide `sprintf` (0x72D20) kept only the low byte of
-  a format string's own characters. Four bytes of `default.xbe` fix that, checked
-  against the original; that is why the regenerate-and-build step is needed.
+- **Code fixes:** the game's wide `sprintf` (0x72D20) kept only the low byte of a
+  format string's own characters, and its 8-bit-to-wide copies (the `%s` of
+  "Pick up %s" among them) widened with a sign, so a byte ≥ 0x80 turned into a
+  glyph index and the prompt was cut to "...". Ten 4-byte sites in `default.xbe`,
+  each checked against the original; that is why the regenerate-and-build step is
+  needed.
 - **Both languages stay installed.** Every `.sdb` has `.sdb.en` and `.sdb.ru` side
   by side; the launcher copies the chosen set into place before each start.
 - **Stays English:** level names (save names), the folder name of each level

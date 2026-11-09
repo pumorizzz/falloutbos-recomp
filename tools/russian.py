@@ -489,6 +489,17 @@ def fonts_apply(resx):
 # so the generated C has to be redone afterwards (./regen.sh, then build).
 XBE_SITES = [(0x00072D46, bytes.fromhex('660FB603'), bytes.fromhex('668B0390'))]
 
+# 8-bit text widened to UTF-16 with a sign: `movsx r16, r8`. A byte >= 0x80
+# (the Cyrillic of CP1251) became 0xFFxx, which the renderer takes for a
+# direct glyph index (c & 0xF800 == 0xF800): "Pick up %s" (0x729A0, its %s)
+# measured hundreds of pixels wide and was cut to "...". `movzx` keeps the
+# code point. The other eight are the game's other 8-bit-to-wide copies;
+# for ASCII nothing changes.
+for _va, _modrm in ((0x00014C32, 'C9'), (0x00030560, 'D2'), (0x000306D0, 'D2'),
+                    (0x0003B192, 'D1'), (0x0003B3A1, 'D1'), (0x0003B4A0, 'D1'),
+                    (0x0003B501, 'D1'), (0x0004F320, 'D2'), (0x00072AF4, 'C0')):
+    XBE_SITES.append((_va, bytes.fromhex('660FBE' + _modrm), bytes.fromhex('660FB6' + _modrm)))
+
 # The inventory's own 8-bit strings in .rdata, rewritten in place in cp1251
 # (they come out as code points and the fonts map them, see CP1251): VA, the
 # room (the string, its NUL and the zeros up to the next one), English,
