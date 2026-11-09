@@ -107,6 +107,11 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
   double space where the English has its ellipsis (byte 0x85); now "...".
   "Français"/"Español" (a language menu the USA game does not show) are
   translated, since the Russian fonts draw ç and ñ as "з" and "с".
+- In Russian the talk prompt by Ruby in Carbon was "Поговорить:" with no name.
+  The game's formatter (0x729A0) takes the name's pointer as a float, which
+  rounds an address of 32-64 MB to a multiple of 4. The Russian name started
+  2 bytes off that, and the prompt read the end of the string before it.
+  `russian.py` now starts every `.sdb` string on 4 bytes; run `apply` again.
 - The launcher set the Russian XBE strings into a `default.xbe` without
   `russian.py`'s code fixes (the disc unpacked again, the `.en`/`.ru` set left),
   and the inventory's labels came out cut to "..."; it now refuses and asks for

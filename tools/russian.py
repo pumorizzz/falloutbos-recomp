@@ -144,6 +144,10 @@ def sdb_write(ents, slots, pad):
     for i, h, s in ents:
         struct.pack_into('<II', table, i * 8, h, 12 + len(pool))
         pool += s.encode('utf-16le') + b'\0\0'
+        # Each string starts on 4 bytes: "%s" in 0x729A0 gets the pointer as
+        # a float (24-bit mantissa), which rounds an address of 32-64 MB to a
+        # multiple of 4. "Talk to %s" read the name 2 bytes early: empty.
+        pool += b'\0' * (-len(pool) % 4)
     d = struct.pack('<III', 0x5DB, 12 + len(pool), len(ents)) + pool + table
     if pad:
         d += b'\0' * (-len(d) % pad)
