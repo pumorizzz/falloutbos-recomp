@@ -19,6 +19,13 @@ atlas.  The text keeps the game's own button icons: { | } ~ and U+0080..U+008F
 The new fonts go at the end of sfx.clp; only their three entries in the
 clump's table of contents and its CRC32 change.
 
+The text is written in cp1251 code points, not U+04xx (see CP1251): several
+of the game's paths keep only a byte. The fonts draw those code points with
+the Cyrillic glyphs. Besides gtext/global/deftexte, each level's own .sdb
+(resx/c*/<LEVEL>/<LEVEL>.sdb: object and enemy names) gets the names from
+tools/ru/global_names.py, and twelve inventory strings inside the XBE are
+rewritten in place (XBE_TEXT).
+
 Translations: tools/ru/<name>.tsv and tools/ru/<name>/*.tsv, lines
 "hash<TAB>text" (hash as in the export, \\n for a line break). A string with
 no line keeps its English.
@@ -50,17 +57,53 @@ FONTS = ('gamefonta.fnt', 'gamefontmed.fnt', 'gamefontsmall.fnt')
 # Cyrillic, and the Russian punctuation the fonts lack: « » – — №
 CYRILLIC = [0x401] + list(range(0x410, 0x450)) + [0x451] + [0xAB, 0xBB, 0x2013, 0x2014, 0x2116]
 
+# The text goes into the game as cp1251 code points (А = U+00C0 ... я = U+00FF,
+# Ё = U+00A8, ё = U+00B8, – — № = U+0096 U+0097 U+00B9), not as U+04xx.
+# Several paths are 8-bit: "%s" in the wide sprintf, the names of items and
+# objects ("Pick up %s"), the strings inside the XBE, save names. They keep
+# the low byte of a character, which for U+0411 'Б' is 0x11 and for 'е' '5';
+# a cp1251 code point survives the trip and comes back as itself. The fonts
+# draw those code points with the Cyrillic glyphs (add_cyrillic), in their
+# table of glyphs and in their byte map alike.
+CP1251 = {c: ord(c.encode('cp1251')) for c in
+          [chr(x) for x in [0x401] + list(range(0x410, 0x450)) + [0x451, 0x2013, 0x2014, 0x2116]]}
+# Except 'я': its cp1251 byte is 0xFF, a signed -1 on the 8-bit paths. The
+# player's name ("Надя") goes through one, and with 0xFF in it her model fell
+# apart into spikes. 0x9F is free (no icon, no English text uses it).
+CP1251['я'] = 0x9F
+
+
+def to_game(text):
+    return ''.join(chr(CP1251[c]) if c in CP1251 else c for c in text)
+
+
+def from_game(text):
+    back = {chr(v): k for k, v in CP1251.items()}
+    return ''.join(back.get(c, c) for c in text)
+
 
 # ---- .sdb ---------------------------------------------------------------------
+
+def table_slots(n):
+    """The game's hash table size for n entries (0x38BC0, the same for .clp):
+    a power of two, 2-4 times n. The bytes after the table are padding, not
+    always zero (the level .sdb files carry garbage there)."""
+    e = ((n >> 1) + n) >> 1
+    bits = 1
+    while e:
+        e >>= 1
+        bits += 1
+    return 1 << bits
+
 
 def sdb_read(d):
     """[(slot, hash, text)] in file order of the strings, and the slot count."""
     magic, tbl, cnt = struct.unpack_from('<III', d, 0)
     if magic != 0x5DB:
         raise ValueError('not an .sdb')
-    slots = 1
-    while tbl + slots * 16 <= len(d):
-        slots *= 2
+    slots = table_slots(cnt)
+    if tbl + slots * 8 > len(d):
+        raise ValueError('hash table past the end of the file')
     out = []
     for i in range(slots):
         h, o = struct.unpack_from('<II', d, tbl + i * 8)
@@ -151,7 +194,7 @@ class Font:
     def __init__(self, d):
         self.n, self.v, self.nk, g, k, t = struct.unpack_from('<HHIIII', d, 0)
         self.head = d[:0x14]
-        self.cmap = d[0x14:g]
+        self.cmap = bytearray(d[0x14:g])        # u16[256]: byte -> glyph, 8-bit text
         self.glyphs = [list(struct.unpack_from('<Hhhhhhhh', d, g + i * 16)) for i in range(self.n)]
         self.kern = d[k:t]
         self.w, self.h, self.fmt, hs = struct.unpack_from('<HHII', d, t)
@@ -266,6 +309,21 @@ def add_cyrillic(font, ttf):
         # box top from the line top; the box has a 1 px border above the ink
         yoff = baseline - rise - 1
         font.glyphs.append([ch, x, x + w, y, y + h, yoff, w, -1])
+    # The cp1251 code points (see CP1251) name the same glyphs. The Latin-1
+    # letters that held those codes (À..ÿ, ¨ ¸ ¹) move to U+E000 + code:
+    # the game looks a glyph up by the first match.
+    codes = set(CP1251.values())
+    for g in font.glyphs:
+        if g[0] in codes:
+            g[0] = 0xE000 + g[0]
+    index = {g[0]: i for i, g in enumerate(font.glyphs)}
+    for c, cp in CP1251.items():
+        if ord(c) not in index:
+            continue
+        g = list(font.glyphs[index[ord(c)]])
+        g[0] = cp
+        font.glyphs.append(g)
+        struct.pack_into('<H', font.cmap, cp * 2, len(font.glyphs) - 1)
     return size
 
 
@@ -292,6 +350,57 @@ def export(outdir):
     return 0
 
 
+def level_sdbs(resx):
+    """Each level's own strings, the names of its objects and characters:
+    resx/c1/TUTOR/TUTOR.sdb and the like (61 files)."""
+    out = []
+    for c in sorted(os.listdir(resx)):
+        cdir = os.path.join(resx, c)
+        if not (os.path.isdir(cdir) and re.fullmatch(r'c\d', c)):
+            continue
+        for lvl in sorted(os.listdir(cdir)):
+            p = os.path.join(cdir, lvl, lvl + '.sdb')
+            if os.path.exists(p):
+                out.append(p)
+    return out
+
+
+def names():
+    """Display names by English text, from tools/ru/global_names.py."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location('global_names', os.path.join(RU, 'global_names.py'))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod.NAMES
+
+
+def sdb_one(path, tr, by_text=False):
+    """Rebuild <path> from <path>.en with tr (hash -> Russian, or English text
+    -> Russian when by_text), written in cp1251 code points. Keeps the
+    Russian set as <path>.ru too: the launcher copies the .en or the .ru set
+    over the .sdb before each start. (changed, translated, total)"""
+    orig = path + '.en'
+    if not os.path.exists(orig):
+        shutil.copyfile(path, orig)
+    d = open(orig, 'rb').read()
+    ents, slots = sdb_read(d)
+    if not by_text:
+        known = {h for _, h, _ in ents}
+        stray = [h for h in tr if h not in known]
+        if stray:
+            print(f'  {os.path.basename(path)}: {len(stray)} hashes not in the game, e.g. {stray[0]:08x}')
+    key = (lambda h, s: s) if by_text else (lambda h, s: h)
+    done = sum(1 for _, h, s in ents if key(h, s) in tr)
+    ents = [(i, h, to_game(tr[key(h, s)]) if key(h, s) in tr else s) for i, h, s in ents]
+    out = sdb_write(ents, slots, 2048 if len(d) % 2048 == 0 else 0)
+    changed = open(path, 'rb').read() != out
+    if changed:
+        open(path, 'wb').write(out)
+    if not os.path.exists(path + '.ru') or open(path + '.ru', 'rb').read() != out:
+        open(path + '.ru', 'wb').write(out)
+    return int(changed), done, len(ents)
+
+
 def sdb_apply(resx):
     changed = 0
     for name in SDBS:
@@ -301,30 +410,21 @@ def sdb_apply(resx):
             tsvs += [os.path.join(base, f) for f in sorted(os.listdir(base)) if f.endswith('.tsv')]
         if not tsvs:
             continue
-        path = os.path.join(resx, name)
-        orig = path + '.en'
-        if not os.path.exists(orig):
-            shutil.copyfile(path, orig)
-        d = open(orig, 'rb').read()
-        ents, slots = sdb_read(d)
         tr = {}
         for t in tsvs:
             tr.update(tsv_read(t))
-        known = {h for _, h, _ in ents}
-        stray = [h for h in tr if h not in known]
-        if stray:
-            print(f'  {name}: {len(stray)} hashes not in the game, e.g. {stray[0]:08x}')
-        done = sum(1 for _, h, _ in ents if h in tr)
-        ents = [(i, h, tr.get(h, s)) for i, h, s in ents]
-        out = sdb_write(ents, slots, 2048 if len(d) % 2048 == 0 else 0)
-        if open(path, 'rb').read() != out:
-            open(path, 'wb').write(out)
-            changed += 1
-        # both sets stay side by side, <name>.sdb.en and .sdb.ru: the launcher
-        # copies the chosen one over <name>.sdb before starting the game
-        if not os.path.exists(path + '.ru') or open(path + '.ru', 'rb').read() != out:
-            open(path + '.ru', 'wb').write(out)
-        print(f'  {name}: {done} of {len(ents)} strings in Russian')
+        c, done, total = sdb_one(os.path.join(resx, name), tr)
+        changed += c
+        print(f'  {name}: {done} of {total} strings in Russian')
+    nm = names()
+    done = total = 0
+    levels = level_sdbs(resx)
+    for p in levels:
+        c, dn, tt = sdb_one(p, nm, by_text=True)
+        changed += c
+        done += dn
+        total += tt
+    print(f'  {len(levels)} level .sdb: {done} of {total} strings in Russian (names)')
     return changed
 
 
@@ -389,6 +489,35 @@ def fonts_apply(resx):
 # so the generated C has to be redone afterwards (./regen.sh, then build).
 XBE_SITES = [(0x00072D46, bytes.fromhex('660FB603'), bytes.fromhex('668B0390'))]
 
+# The inventory's own 8-bit strings in .rdata, rewritten in place in cp1251
+# (they come out as code points and the fonts map them, see CP1251): VA, the
+# room (the string, its NUL and the zeros up to the next one), English,
+# Russian. Data, not code: the runtime maps .rdata from the XBE at start-up,
+# so these need no regeneration.
+XBE_TEXT = [
+    (0x000E402C, 20, 'Required Level: %d', 'Нужен уровень: %d'),
+    (0x000E4040, 12, 'Cost: %d', 'Цена: %d'),
+    (0x000E4104, 12, 'Next Level:', 'До уровня:'),
+    (0x000E4140, 8, 'Caps:', 'Крышки:'),
+    (0x000E4148, 8, 'Armor:', 'Броня:'),
+    (0x000E4158, 8, 'Health:', 'Жизнь:'),
+    (0x000E4160, 16, 'Skill Points:', 'Очки навыков:'),
+    (0x000E4170, 12, 'Experience:', 'Опыт:'),
+    (0x000E41AC, 12, 'No Quests', 'Нет заданий'),
+    (0x000E4208, 12, 'No Weapons', 'Нет оружия'),
+    (0x000E4214, 12, 'No Armor', 'Нет брони'),
+    (0x000E4220, 12, 'No Items', 'Нет вещей'),
+]
+
+
+def xbe_text_sites():
+    out = []
+    for va, room, en, ru in XBE_TEXT:
+        a, b = en.encode('ascii'), to_game(ru).encode('latin-1')
+        assert len(a) < room and len(b) < room, en
+        out.append((va, a + bytes(room - len(a)), b + bytes(room - len(b))))
+    return out
+
 
 def xbe_offset(d, va):
     base = struct.unpack_from('<I', d, 0x104)[0]
@@ -403,8 +532,9 @@ def xbe_offset(d, va):
 def xbe_patch(xbe, to_new):
     """1 if the file changed, 0 if it already was so, -1 if not this image"""
     d = bytearray(open(xbe, 'rb').read())
-    changed = False
-    for va, orig, new in XBE_SITES:
+    code = text = False
+    sites = [(s, True) for s in XBE_SITES] + [(s, False) for s in xbe_text_sites()]
+    for (va, orig, new), is_code in sites:
         o = xbe_offset(d, va)
         here = bytes(d[o:o + len(orig)]) if o is not None else b''
         want, other = (new, orig) if to_new else (orig, new)
@@ -413,13 +543,22 @@ def xbe_patch(xbe, to_new):
         if here != other:
             print(f'russian: {xbe} at {va:#010x} is neither the original nor the patch; left as it is')
             return -1
-        d[o:o + len(want)] = want
-        changed = True
-    if changed:
+    for (va, orig, new), is_code in sites:
+        o = xbe_offset(d, va)
+        want = new if to_new else orig
+        if d[o:o + len(want)] != want:
+            d[o:o + len(want)] = want
+            code |= is_code
+            text |= not is_code
+    if code or text:
         open(xbe, 'wb').write(d)
-        print(f'  default.xbe: wide sprintf copies whole characters ({"patched" if to_new else "original"}); '
+    state = 'patched' if to_new else 'original'
+    if text:
+        print(f'  default.xbe: {len(XBE_TEXT)} inventory strings ({state})')
+    if code:
+        print(f'  default.xbe: wide sprintf copies whole characters ({state}); '
               'regenerate and build (./regen.sh, cmake --build)')
-    return 1 if changed else 0
+    return 1 if code or text else 0
 
 
 def main(argv):
@@ -451,8 +590,7 @@ def main(argv):
     if cmd == 'revert':
         x = xbe_patch(xbe, False)
         n = fonts_revert(resx) + max(x, 0)
-        for name in SDBS:
-            p = os.path.join(resx, name)
+        for p in [os.path.join(resx, name) for name in SDBS] + level_sdbs(resx):
             if os.path.exists(p + '.en'):
                 shutil.copyfile(p + '.en', p)
                 os.remove(p + '.en')

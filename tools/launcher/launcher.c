@@ -119,6 +119,20 @@ static int russian_present(void)
     return GetFileAttributesA(p) != INVALID_FILE_ATTRIBUTES;
 }
 
+/* src over dst when src is there: 1, unless the copy failed (said why). */
+static int copy_set_file(HWND owner, const char *src, const char *dst)
+{
+    char msg[MAX_PATH + 64];
+    if (GetFileAttributesA(src) == INVALID_FILE_ATTRIBUTES)
+        return 1;
+    if (CopyFileA(src, dst, FALSE))
+        return 1;
+    snprintf(msg, sizeof msg, "Could not copy %s (error %lu).", src,
+             (unsigned long)GetLastError());
+    MessageBoxA(owner, msg, "Fallout: Brotherhood of Steel", MB_ICONERROR);
+    return 0;
+}
+
 /* Copy the chosen language's .sdb set into place. A set that is not there
  * (no tools/russian.py apply yet, so no .en either) leaves the files as
  * they are: 1, unless a copy failed. */
@@ -137,15 +151,42 @@ static int set_language(HWND owner)
     for (i = 0; i < COUNT(k_sdb); i++) {
         snprintf(src, sizeof src, "%s\\game\\resx\\%s.%s", s_root, k_sdb[i], lang);
         snprintf(dst, sizeof dst, "%s\\game\\resx\\%s", s_root, k_sdb[i]);
-        if (GetFileAttributesA(src) == INVALID_FILE_ATTRIBUTES)
-            continue;
-        if (!CopyFileA(src, dst, FALSE)) {
-            snprintf(msg, sizeof msg, "Could not copy %s (error %lu).", src,
-                     (unsigned long)GetLastError());
-            MessageBoxA(owner, msg, "Fallout: Brotherhood of Steel", MB_ICONERROR);
+        if (!copy_set_file(owner, src, dst))
             return 0;
+    }
+    /* Each level's own names: game\resx\c<n>\<LEVEL>\<LEVEL>.sdb */
+    {
+        char pat[MAX_PATH];
+        WIN32_FIND_DATAA c, l;
+        HANDLE hc, hl;
+        snprintf(pat, sizeof pat, "%s\\game\\resx\\c?", s_root);
+        hc = FindFirstFileA(pat, &c);
+        if (hc != INVALID_HANDLE_VALUE) {
+            do {
+                if (!(c.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+                    continue;
+                snprintf(pat, sizeof pat, "%s\\game\\resx\\%s\\*", s_root, c.cFileName);
+                hl = FindFirstFileA(pat, &l);
+                if (hl == INVALID_HANDLE_VALUE)
+                    continue;
+                do {
+                    if (!(l.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) || l.cFileName[0] == '.')
+                        continue;
+                    snprintf(dst, sizeof dst, "%s\\game\\resx\\%s\\%s\\%s.sdb", s_root,
+                             c.cFileName, l.cFileName, l.cFileName);
+                    snprintf(src, sizeof src, "%s.%s", dst, lang);
+                    if (!copy_set_file(owner, src, dst)) {
+                        FindClose(hl);
+                        FindClose(hc);
+                        return 0;
+                    }
+                } while (FindNextFileA(hl, &l));
+                FindClose(hl);
+            } while (FindNextFileA(hc, &c));
+            FindClose(hc);
         }
     }
+    (void)msg;
     return 1;
 }
 

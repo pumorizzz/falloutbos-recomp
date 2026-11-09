@@ -78,22 +78,27 @@ cmake --build build-msvc --config Release
 Then choose **Русский** under *Language* in the launcher. **English is the default.**
 Switching back and forth needs no rebuild.
 
-- **Text:** all of `gtext.sdb` (dialogue, quests, menus, hints, subtitles) and the
+- **Text:** all of `gtext.sdb` (dialogue, quests, menus, hints, subtitles), the
   display names in `global.sdb` / `deftexte.sdb` (items, armour, weapons,
-  characters, objects). The translation is kept by string hash in `tools/ru/`.
-- **Fonts:** the game finds a glyph by its Unicode code point, so 71 glyphs
-  (А–я, Ё, ё, « » – — №) are added to its three fonts inside `sfx.clp`. They are
-  drawn from PT Sans (SIL OFL, `tools/ru/fonts`) in the fonts' own style, with the
-  same white face and 1 px outline.
+  characters) and in each level's own `resx\c*\<LEVEL>\<LEVEL>.sdb` (enemies,
+  people, objects), and the inventory's labels inside the XBE (`Experience:`,
+  `Cost: %d`, `No Items`...). The translation is kept in `tools/ru/`.
+- **Encoding:** several of the game's paths are 8-bit (item names in
+  "Pick up %s", the XBE's own strings, save names), so the text goes in as cp1251
+  code points rather than U+04xx, and the fonts draw those codes with Cyrillic.
+  `я` uses 0x9F, not cp1251's 0xFF: the player's name passes through a path that
+  reads 0xFF as -1, and Nadia's model fell apart.
+- **Fonts:** 71 glyphs (А–я, Ё, ё, « » – — №) are added to the game's three fonts
+  inside `sfx.clp`. They are drawn from PT Sans (SIL OFL, `tools/ru/fonts`) in the
+  fonts' own style, with the same white face and 1 px outline.
 - **One code fix:** the game's wide `sprintf` (0x72D20) kept only the low byte of
-  a format string's own characters, so a translated "Select" under character
-  select came out as `K1@0BL`. Four bytes of `default.xbe` fix that, checked
-  against the original. That is why the regenerate-and-build step is needed.
-- **Both languages stay installed.** `game\resx\*.sdb.en` and `*.sdb.ru` sit side
+  a format string's own characters. Four bytes of `default.xbe` fix that, checked
+  against the original; that is why the regenerate-and-build step is needed.
+- **Both languages stay installed.** Every `.sdb` has `.sdb.en` and `.sdb.ru` side
   by side; the launcher copies the chosen set into place before each start.
-- **Stays English:** level names (the game narrows them to 8 bits for save names),
-  text drawn into textures (the compass letters) and movies (the T. S. Eliot quote
-  in the intro), and the few strings inside the XBE (the credits).
+- **Stays English:** level names (save names), the folder name of each level
+  (`TUTORIAL` is a path), text drawn into textures (the compass letters) and movies
+  (the T. S. Eliot quote in the intro), and the credits.
 
 `py -3 tools/russian.py status` reports what is installed, and `revert` restores
 the original files. Formats and internals are documented in the script's header.
