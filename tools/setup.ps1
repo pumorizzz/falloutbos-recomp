@@ -86,14 +86,22 @@ if (-not (Test-Path (Join-Path $Toolkit '.git'))) {
     Say "--> checking the toolkit against $ToolkitRef"
     $prev = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
-    git -C $Toolkit fetch $ToolkitUrl $ToolkitRef 2>&1 | ForEach-Object { "$_" } | Out-File $Log -Append -Encoding utf8
+    $fetchOut = @(git -C $Toolkit fetch $ToolkitUrl $ToolkitRef 2>&1 | ForEach-Object { "$_" })
     $fetched = $LASTEXITCODE -eq 0
+    $fetchOut | Out-File $Log -Append -Encoding utf8
     $ErrorActionPreference = $prev
     if ($fetched) {
         $tip = (git -C $Toolkit rev-parse FETCH_HEAD).Trim()
         git -C $Toolkit merge-base --is-ancestor $tip HEAD
     }
-    if (-not $fetched) { Say "Could not reach $ToolkitUrl; using the toolkit already in $Toolkit as it is." }
+    if (-not $fetched) {
+        # git's own words: no network, no such branch and a refused login all
+        # end up here, and only the first is fine to shrug off.
+        $why = ($fetchOut | Where-Object { $_ -match '^(fatal|error):' } | Select-Object -Last 1)
+        if (-not $why) { $why = ($fetchOut | Select-Object -Last 1) }
+        Say "Could not fetch $ToolkitRef from ${ToolkitUrl}: $why"
+        Say "Using the toolkit already in $Toolkit as it is; if the build fails, fix the above and run Setup again."
+    }
     elseif ($LASTEXITCODE -eq 0) { Say "Toolkit already present and up to date: $Toolkit" }
     else {
         git -C $Toolkit merge-base --is-ancestor HEAD $tip
