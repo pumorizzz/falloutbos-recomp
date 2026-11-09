@@ -1,6 +1,6 @@
 /*
  * FalloutLauncher.exe: pick the render resolution, the picture size and the
- * anti-aliasing, then start bin\fbos.exe the way Play.cmd does.
+ * anti-aliasing, then start bin\fobos.exe the way Play.cmd does.
  *
  * Everything it sets is an environment variable the game already reads
  * (README, "Usage"): RECOMP_GPU_RASTER_SCALE (the resolution the GPU renders
@@ -103,10 +103,10 @@ static void save(void)
         SendMessageA(s_full, BM_GETCHECK, 0, 0) == BST_CHECKED ? "1" : "0", s_ini);
 }
 
-/* bin\fbos.exe, from the repository root (it reads game\default.xbe), with
+/* bin\fobos.exe, from the repository root (it reads game\default.xbe), with
  * what Play.cmd sets plus the choice. 0 on failure, after saying why.
  *
- * Its output goes to fbos.log in the root, with no console window. The
+ * Its output goes to fobos.log in the root, with no console window. The
  * runtime prints a report every ten seconds from the thread that runs the
  * pushbuffer; into a console that took 20-40 ms and showed as a hitch every
  * ten seconds, into a file it takes 2-3. */
@@ -119,9 +119,9 @@ static int play(HWND owner)
     HANDLE out;
     BOOL ok;
 
-    snprintf(exe, sizeof exe, "%s\\bin\\fbos.exe", s_root);
+    snprintf(exe, sizeof exe, "%s\\bin\\fobos.exe", s_root);
     if (GetFileAttributesA(exe) == INVALID_FILE_ATTRIBUTES) {
-        MessageBoxA(owner, "bin\\fbos.exe is not built yet. Run Setup.cmd first.",
+        MessageBoxA(owner, "bin\\fobos.exe is not built yet. Run Setup.cmd first.",
                     "Fallout: Brotherhood of Steel", MB_ICONERROR);
         return 0;
     }
@@ -139,7 +139,7 @@ static int play(HWND owner)
     memset(&sa, 0, sizeof sa);
     sa.nLength = sizeof sa;
     sa.bInheritHandle = TRUE;
-    snprintf(log, sizeof log, "%s\\fbos.log", s_root);
+    snprintf(log, sizeof log, "%s\\fobos.log", s_root);
     out = CreateFileA(log, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, &sa,
                       CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
     memset(&si, 0, sizeof si);
@@ -157,7 +157,7 @@ static int play(HWND owner)
         CloseHandle(out);
     if (!ok) {
         char msg[128];
-        snprintf(msg, sizeof msg, "Could not start bin\\fbos.exe (error %lu).",
+        snprintf(msg, sizeof msg, "Could not start bin\\fobos.exe (error %lu).",
                  (unsigned long)GetLastError());
         MessageBoxA(owner, msg, "Fallout: Brotherhood of Steel", MB_ICONERROR);
         return 0;

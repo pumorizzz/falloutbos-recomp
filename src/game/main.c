@@ -124,7 +124,7 @@ static int xbe_is_widescreen(const void *xbe, size_t size)
  * Every generated function is a real symbol (sub_0009547C and so on), so the
  * PDB maps a host address back to the guest function, and the line number
  * maps it to the guest instruction: the generated source labels every guest
- * address as `loc_XXXXXXXX:`. Needs fbos.pdb beside the exe. */
+ * address as `loc_XXXXXXXX:`. Needs fobos.pdb beside the exe. */
 static void print_host_symbol(void *addr)
 {
     char buf[sizeof(SYMBOL_INFO) + 256];
@@ -146,7 +146,7 @@ static void print_host_symbol(void *addr)
             fprintf(stderr, "  at %s:%lu\n", line.FileName, line.LineNumber);
     }
     else
-        fprintf(stderr, "  in <no symbol; keep fbos.pdb beside the exe>\n");
+        fprintf(stderr, "  in <no symbol; keep fobos.pdb beside the exe>\n");
 }
 
 /* Guest backtrace.

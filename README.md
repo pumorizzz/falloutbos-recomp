@@ -244,7 +244,7 @@ Nothing from the game is downloaded or included.
    and keeps the details in `setup.log`; running it again resumes.
 3. Double-click **`bin\FalloutLauncher.exe`** to pick the render resolution,
    the picture size, full screen, anti-aliasing and the frame-rate limit, then Play (the choice is
-   kept in `bin\launcher.ini`; the game's messages go to `fbos.log`, with no
+   kept in `bin\launcher.ini`; the game's messages go to `fobos.log`, with no
    console window) -- or **`Play.cmd`** for the defaults. An
    XInput controller (Xbox 360/One pad) is
    player 1; the keyboard works too: WASD left stick, IJKL right stick,
@@ -310,12 +310,12 @@ install. After installing anything, open a new terminal so PATH picks it up.
    cmake --build build-msvc --config Release
    ```
 
-   The executable lands in `bin/fbos.exe`.
+   The executable lands in `bin/fobos.exe`.
 
 5. Run from the repo root (it reads `game/default.xbe`), or use `Play.cmd`:
 
    ```bash
-   RECOMP_PB_EXEC=1 RECOMP_FB_WINDOW=1 RECOMP_KEYBOARD=1 RECOMP_GPU_RASTER=1 ./bin/fbos.exe
+   RECOMP_PB_EXEC=1 RECOMP_FB_WINDOW=1 RECOMP_KEYBOARD=1 RECOMP_GPU_RASTER=1 ./bin/fobos.exe
    ```
 
 ## Usage
@@ -324,7 +324,7 @@ install. After installing anything, open a new terminal so PATH picks it up.
 |---|---|
 | `RECOMP_PB_EXEC=1` | execute the title's NV2A pushbuffer, so it actually draws |
 | `RECOMP_FB_WINDOW=1` | show the framebuffer in a window. Off by default: runs are headless |
-| `RECOMP_GPU_RASTER=1` \| `warp` \| `compare` | rasterise on the GPU (Direct3D 11) instead of the CPU: `1` a hardware adapter (WARP if none), `warp` the WARP software adapter, `compare` both paths draw and each flip prints how far the GPU differs from the software result, `0` the CPU. `Play.cmd` sets `1` unless it is already set; `fbos.exe` alone draws on the CPU. Needs `RECOMP_PB_EXEC=1`; without a D3D11 device it stays on the CPU |
+| `RECOMP_GPU_RASTER=1` \| `warp` \| `compare` | rasterise on the GPU (Direct3D 11) instead of the CPU: `1` a hardware adapter (WARP if none), `warp` the WARP software adapter, `compare` both paths draw and each flip prints how far the GPU differs from the software result, `0` the CPU. `Play.cmd` sets `1` unless it is already set; `fobos.exe` alone draws on the CPU. Needs `RECOMP_PB_EXEC=1`; without a D3D11 device it stays on the CPU |
 | `RECOMP_GPU_RASTER_SCALE=<n>` \| `<x>x<y>` | internal resolution on the GPU path: every render target and depth buffer is that many times the surface (1-8 each way), so geometry, edges and the title's own downsample come out sharp. `3` renders the 640x480 frame at 1920x1440, `4x3` at 2560x1440. What goes back to guest RAM stays 640x480 (blocks averaged). `Play.cmd` sets `3` |
 | `RECOMP_GPU_RASTER_MSAA=<n>` | multisample anti-aliasing on the GPU path, 2, 4 or 8 samples (lowered to what the GPU has). `Play.cmd` sets `4` |
 | `RECOMP_FB_SIZE=<w>x<h>` | the picture's size: the window opens at it, shrunk (aspect kept) to fit the screen's work area. `Play.cmd` sets `2560x1440`; by default the frame's height at the display aspect |
@@ -357,13 +357,13 @@ From power-on to Carbon, headless:
 ```bash
 S="25000:start,35000:a,50000:a,65000:a"
 for t in $(seq 80000 5000 250000); do S="$S,$t:a"; done
-RECOMP_PAD_SCRIPT="$S" RECOMP_PB_EXEC=1 RECOMP_FB_DUMP=shot ./bin/fbos.exe
+RECOMP_PAD_SCRIPT="$S" RECOMP_PB_EXEC=1 RECOMP_FB_DUMP=shot ./bin/fobos.exe
 ```
 
 Headless capture, no window, works over RDP:
 
 ```bash
-RECOMP_PB_EXEC=1 RECOMP_FB_DUMP=shot ./bin/fbos.exe
+RECOMP_PB_EXEC=1 RECOMP_FB_DUMP=shot ./bin/fobos.exe
 ```
 
 ## Building from source

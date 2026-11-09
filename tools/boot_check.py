@@ -1,6 +1,6 @@
 """Boot conformance: run the recompiled game headless and count how far it gets.
 
-    py -3 tools/boot_check.py [path/to/fbos.exe] [--update-baseline]
+    py -3 tools/boot_check.py [path/to/fobos.exe] [--update-baseline]
 
 The ground truth is the retail game's own boot sequence: Interplay logo, intro,
 main menu, character and difficulty select, chapter 1's intro, the first level
@@ -48,7 +48,7 @@ MILESTONES = [
 def main(argv):
     update = "--update-baseline" in argv
     args = [a for a in argv if not a.startswith("--")]
-    exe = os.path.abspath(args[0]) if args else os.path.join(ROOT, "bin", "fbos.exe")
+    exe = os.path.abspath(args[0]) if args else os.path.join(ROOT, "bin", "fobos.exe")
 
     if not os.path.isfile(os.path.join(ROOT, "game", "default.xbe")):
         print("boot_check: SKIP (no game data in game/; unpack your own disc)")

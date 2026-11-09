@@ -18,4 +18,4 @@ rem 4x MSAA. 4x3 is sharper still (2560x1440) and costs about half again as
 rem much GPU time; 1 and no MSAA is the game's own resolution.
 if not defined RECOMP_GPU_RASTER_SCALE set RECOMP_GPU_RASTER_SCALE=3
 if not defined RECOMP_GPU_RASTER_MSAA set RECOMP_GPU_RASTER_MSAA=4
-bin\fbos.exe %*
+bin\fobos.exe %*

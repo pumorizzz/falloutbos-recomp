@@ -148,10 +148,10 @@ if ($WidescreenChanged -or -not (Test-Path (Join-Path $Root 'src\game\recomp\gen
 # ---- 5. build ------------------------------------------------------------------
 # A toolkit update needs a rebuild; the build itself regenerates gen/ when the
 # toolkit's codegen changed (src/game/CMakeLists.txt).
-if ($ToolkitUpdated -or $WidescreenChanged -or -not (Test-Path (Join-Path $Root 'bin\fbos.exe'))) {
+if ($ToolkitUpdated -or $WidescreenChanged -or -not (Test-Path (Join-Path $Root 'bin\fobos.exe'))) {
     Run 'configuring the build' { cmake -S . -B build-msvc -A x64 "-DXBOXRECOMP_DIR=$Toolkit" }
     Run 'building (several minutes; your machine will be busy)' { cmake --build build-msvc --config Release }
-} else { Say "Already built: bin\fbos.exe" }
+} else { Say "Already built: bin\fobos.exe" }
 
 Say ""
 Say "Done. Double-click bin\FalloutLauncher.exe (resolution, anti-aliasing) or Play.cmd in $Root to start the game."

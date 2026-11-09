@@ -179,6 +179,7 @@ target_compile_definitions(fbos PRIVATE
 
 # Output to project root for easy testing
 set_target_properties(fbos PROPERTIES
+    OUTPUT_NAME fobos                   # as the game names its saves (fobos.sav)
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin"
     RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_SOURCE_DIR}/bin"
     RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_SOURCE_DIR}/bin"
