@@ -42,15 +42,12 @@ static const Choice k_aa[] = {
     { "MSAA 8x", "8" },
 };
 /* RECOMP_FPS_LIMIT: the flip waits for the next 1/n s, standing in for the
- * TV's vblank. Unlimited runs menus and loading screens at hundreds of fps,
- * and the menus then take a held button as several presses. */
+ * TV's vblank. No "unlimited": menus and loading screens would run at
+ * hundreds of fps and take a held button as several presses. */
 static const Choice k_fps[] = {
     { "30 fps", "30" },
-    { "60 fps (as on the Xbox)", "60" },
+    { "60 fps", "60" },
     { "120 fps", "120" },
-    { "144 fps", "144" },
-    { "165 fps", "165" },
-    { "Unlimited (menus may skip)", "0" },
 };
 #define COUNT(a) ((int)(sizeof(a) / sizeof((a)[0])))
 
