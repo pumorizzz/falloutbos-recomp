@@ -85,7 +85,7 @@ NAMES = {
     'Bulkhead Door': 'Герметичная дверь', 'Vault Door': 'Дверь Убежища', 'Garage Door': 'Ворота гаража',
     'Dania': 'Даня', 'Deathclaw Egg': 'Яйцо когтя смерти', 'Freezer Chest': 'Морозильный ларь',
     'Save Game Console': 'Консоль сохранения', 'Vault Library Shelf': 'Стеллаж библиотеки Убежища', 'Mary': 'Мэри',
-    'Armpit, Wasteland Bartender': 'Подмышка, бармен', 'Attis, Mutant General': 'Аттис, генерал мутантов',
+    'Armpit, Wasteland Bartender': 'Подмыха, бармен', 'Attis, Mutant General': 'Аттис, генерал мутантов',
     'Ching Tsun, Vault Scientist': 'Чинг Цун, учёный Убежища', 'DuBois, Vault Chief Scientist': 'Дюбуа, главный учёный Убежища',
     'Fisher, Ghoul Officer': 'Фишер, гуль-офицер', 'Giese, Ghoul Engineer': 'Гизе, гуль-инженер',
     'Harold, Ghoul Wanderer': 'Гарольд, гуль-странник', 'Jane, Raider Matron': 'Джейн, Матрона рейдеров',
