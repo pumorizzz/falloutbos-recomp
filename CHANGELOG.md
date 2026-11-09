@@ -103,6 +103,11 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
   English set there).
 - Three Russian lines (a ghoul's compliment, two Shop-Tec adverts) had a
   double space where the English has its ellipsis (byte 0x85); now "...".
+- The launcher set the Russian XBE strings into a `default.xbe` without
+  `russian.py`'s code fixes (the disc unpacked again, the `.en`/`.ru` set left),
+  and the inventory's labels came out cut to "..."; it now refuses and asks for
+  `py -3 tools\russian.py apply`. English still starts. It also keeps a
+  `RECOMP_GPU_RASTER` set beforehand, as `Play.cmd` does.
 
 ### Added (boot to Carbon, 2026-10-17 to 2026-10-18)
 - Project from the xboxrecomp new-game template and the Half-Life 2 port's

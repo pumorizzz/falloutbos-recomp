@@ -162,6 +162,38 @@ static void xbe_error(HWND owner, const char *what)
     MessageBoxA(owner, msg, "Fallout: Brotherhood of Steel", MB_ICONERROR);
 }
 
+/* The ten 4-byte code fixes of tools/russian.py (XBE_SITES, keep the two
+ * lists alike): the wide sprintf's whole-character copy and nine movsx ->
+ * movzx. Without them the Russian strings come out cut to "..." -- a disc
+ * unpacked again over a game whose .en/.ru set stayed. widescreen.py does not
+ * touch these. */
+static const DWORD k_code_va[] = {
+    0x00072D46, 0x00014C32, 0x00030560, 0x000306D0, 0x0003B192,
+    0x0003B3A1, 0x0003B4A0, 0x0003B501, 0x0004F320, 0x00072AF4,
+};
+
+/* File offset of an XBE virtual address (its section headers), or -1. */
+static long xbe_offset(const unsigned char *d, DWORD n, DWORD va)
+{
+    DWORD base, count, at, i;
+    if (n < 0x124)
+        return -1;
+    memcpy(&base, d + 0x104, 4);
+    memcpy(&count, d + 0x11C, 4);
+    memcpy(&at, d + 0x120, 4);
+    for (i = 0; i < count; i++) {
+        DWORD h = at - base + i * 56, sva, raw, size;
+        if (at < base || h > n || n - h < 20)
+            return -1;
+        memcpy(&sva, d + h + 4, 4);
+        memcpy(&raw, d + h + 12, 4);
+        memcpy(&size, d + h + 16, 4);
+        if (va >= sva && va - sva < size)
+            return raw + (va - sva) <= n ? (long)(raw + (va - sva)) : -1;
+    }
+    return -1;
+}
+
 /* The inventory's labels and the loading screen's "Loading..." are 8-bit
  * strings in the XBE's .rdata. default.xbe.en and .ru (tools/russian.py,
  * xbe_variants) differ only in those bytes, so exactly those bytes of
@@ -194,6 +226,16 @@ static int set_xbe_strings(HWND owner, const char *lang)
         xbe_error(owner, "it is not the image its .en/.ru set was made from.");
         goto out;
     }
+    /* Russian needs the code fixes in place; English is the original. */
+    if (want == ru)
+        for (i = 0; i < (DWORD)COUNT(k_code_va); i++) {
+            long o = xbe_offset(cur, n_cur, k_code_va[i]);
+            if (o < 0 || (DWORD)o + 4 > n_cur || memcmp(cur + o, en + o, 4) != 0) {
+                xbe_error(owner, "it lacks the code fixes of tools\\russian.py "
+                                 "(unpacked from the disc again?).");
+                goto out;
+            }
+        }
     for (i = 0; i < n_cur; i++)
         if (en[i] != ru[i] && cur[i] != en[i] && cur[i] != ru[i]) {
             xbe_error(owner, "its strings are neither the English nor the Russian ones.");
@@ -323,7 +365,9 @@ static int play(HWND owner)
     SetEnvironmentVariableA("RECOMP_PB_EXEC", "1");
     SetEnvironmentVariableA("RECOMP_FB_WINDOW", "1");
     SetEnvironmentVariableA("RECOMP_KEYBOARD", "1");
-    SetEnvironmentVariableA("RECOMP_GPU_RASTER", "1");
+    /* As Play.cmd: RECOMP_GPU_RASTER=0 set beforehand keeps the CPU rasteriser. */
+    if (GetEnvironmentVariableA("RECOMP_GPU_RASTER", NULL, 0) == 0)
+        SetEnvironmentVariableA("RECOMP_GPU_RASTER", "1");
     SetEnvironmentVariableA("RECOMP_PAD_RECORD", "saves\\pad_path.txt");
     SetEnvironmentVariableA("RECOMP_GPU_RASTER_SCALE", k_render[selected(s_render)].value);
     SetEnvironmentVariableA("RECOMP_GPU_RASTER_MSAA", k_aa[selected(s_aa)].value);
