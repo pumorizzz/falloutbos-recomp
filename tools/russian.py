@@ -693,6 +693,10 @@ def run(argv):
         return export(argv[2] if len(argv) > 2 else os.path.join(ROOT, 'scratch', 'ru', 'en'))
     resx = argv[2] if len(argv) > 2 else os.path.join(ROOT, 'game', 'resx')
     xbe = os.path.join(os.path.dirname(resx), 'default.xbe')
+    if cmd in ('status', 'apply', 'revert') and not os.path.isfile(xbe):
+        print(f'russian: no {xbe}; give the resx folder of the unpacked game '
+              '(default.xbe beside it)')
+        return 1
     if cmd == 'status':
         def same(a, b):
             return os.path.exists(b) and open(a, 'rb').read() == open(b, 'rb').read()

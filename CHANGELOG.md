@@ -100,7 +100,8 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
 - `russian.py status` on an XBE of another revision stopped with a traceback;
   it now says it is not this image and exits 1. `revert` no longer claims the
   `.sdb` beside a damaged backup is Russian (the launcher may have put the
-  English set there).
+  English set there). Given a `resx` with no `default.xbe` beside it, `status`,
+  `apply` and `revert` say so and exit 1 instead of a `FileNotFoundError`.
 - Three Russian lines (a ghoul's compliment, two Shop-Tec adverts) had a
   double space where the English has its ellipsis (byte 0x85); now "...".
   "Français"/"Español" (a language menu the USA game does not show) are
