@@ -32,6 +32,9 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
 - Hitches of 60-80 ms on the GPU path when new textures came into view (the
   first streets of Carbon): textures decode ~18x faster and DXT goes to the
   GPU as BC; the same frames now stay at 16-19 ms.
+- A hitch every ten seconds when started from `FalloutLauncher.exe`: the
+  runtime's periodic report took 20-40 ms to print into the console window. The
+  launcher now sends the game's output to `fbos.log` without a console (2-3 ms).
 - Particles were not drawn at all (point sprites): steam, laser glow,
   radiation pools, smoke, the shadow atlas.
 - Red, oversaturated crates and target robots: 0 x inf is 0 in `MUL`/`MAD`, as

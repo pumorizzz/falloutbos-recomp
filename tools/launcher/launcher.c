@@ -104,12 +104,20 @@ static void save(void)
 }
 
 /* bin\fbos.exe, from the repository root (it reads game\default.xbe), with
- * what Play.cmd sets plus the choice. 0 on failure, after saying why. */
+ * what Play.cmd sets plus the choice. 0 on failure, after saying why.
+ *
+ * Its output goes to fbos.log in the root, with no console window. The
+ * runtime prints a report every ten seconds from the thread that runs the
+ * pushbuffer; into a console that took 20-40 ms and showed as a hitch every
+ * ten seconds, into a file it takes 2-3. */
 static int play(HWND owner)
 {
-    char exe[MAX_PATH], cmd[MAX_PATH + 2];
+    char exe[MAX_PATH], cmd[MAX_PATH + 2], log[MAX_PATH];
     STARTUPINFOA si;
     PROCESS_INFORMATION pi;
+    SECURITY_ATTRIBUTES sa;
+    HANDLE out;
+    BOOL ok;
 
     snprintf(exe, sizeof exe, "%s\\bin\\fbos.exe", s_root);
     if (GetFileAttributesA(exe) == INVALID_FILE_ATTRIBUTES) {
@@ -128,10 +136,26 @@ static int play(HWND owner)
     SetEnvironmentVariableA("RECOMP_FPS_LIMIT", k_fps[selected(s_fps)].value);
     SetEnvironmentVariableA("RECOMP_FB_FULLSCREEN",
         SendMessageA(s_full, BM_GETCHECK, 0, 0) == BST_CHECKED ? "1" : "0");
+    memset(&sa, 0, sizeof sa);
+    sa.nLength = sizeof sa;
+    sa.bInheritHandle = TRUE;
+    snprintf(log, sizeof log, "%s\\fbos.log", s_root);
+    out = CreateFileA(log, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, &sa,
+                      CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
     memset(&si, 0, sizeof si);
     si.cb = sizeof si;
+    if (out != INVALID_HANDLE_VALUE) {
+        si.dwFlags = STARTF_USESTDHANDLES;
+        si.hStdInput = NULL;
+        si.hStdOutput = out;
+        si.hStdError = out;
+    }
     snprintf(cmd, sizeof cmd, "\"%s\"", exe);
-    if (!CreateProcessA(exe, cmd, NULL, NULL, FALSE, 0, NULL, s_root, &si, &pi)) {
+    ok = CreateProcessA(exe, cmd, NULL, NULL, out != INVALID_HANDLE_VALUE,
+                        CREATE_NO_WINDOW, NULL, s_root, &si, &pi);
+    if (out != INVALID_HANDLE_VALUE)
+        CloseHandle(out);
+    if (!ok) {
         char msg[128];
         snprintf(msg, sizeof msg, "Could not start bin\\fbos.exe (error %lu).",
                  (unsigned long)GetLastError());
