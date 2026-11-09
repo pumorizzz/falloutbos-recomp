@@ -21,8 +21,9 @@ U+0080..U+008F (written \\u0082 and so on in the TSV files).
 The text is written in cp1251 code points, not U+04xx (see CP1251): several
 of the game's paths keep only a byte. Besides gtext/global/deftexte, each
 level's own .sdb (resx/c*/<LEVEL>/<LEVEL>.sdb: object and enemy names) gets
-the names from tools/ru/global_names.py, and twelve inventory strings inside
-the XBE are rewritten in place (XBE_TEXT).
+the names from tools/ru/global_names.py, and thirteen strings inside the XBE
+(the inventory's labels, the loading screen's "Loading...") are rewritten in
+place (XBE_TEXT).
 
 Translations: tools/ru/<name>.tsv and tools/ru/<name>/*.tsv, lines
 "hash<TAB>text" (hash as in the export, \\n for a line break). A string with
@@ -37,7 +38,7 @@ widescreen.py's revert restores its 4:3 copy without them: run `apply` again.
 `apply` keeps the originals: <name>.sdb.en, and sfx.clp.en (its size, header
 and table of contents); `revert` puts them and the XBE bytes back. It leaves
 both languages installed: every .sdb as .sdb.en and .sdb.ru, default.xbe as
-default.xbe.en and .ru (the same code, the inventory strings in English or
+default.xbe.en and .ru (the same code, the XBE strings in English or
 Russian). bin/FalloutLauncher.exe copies one set into place by its Language
 choice; the fonts and the code fixes suit English as well. Exit status: 0 nothing to
 do, 3 files changed, 1 error.
@@ -522,6 +523,8 @@ XBE_TEXT = [
     (0x000E4208, 12, 'No Weapons', 'Нет оружия'),
     (0x000E4214, 12, 'No Armor', 'Нет брони'),
     (0x000E4220, 12, 'No Items', 'Нет вещей'),
+    # the loading screen's caption (0x90444: gamefonta, 8-bit, at 280,396)
+    (0x000E69DC, 12, 'Loading...', 'Загрузка...'),
 ]
 
 
@@ -569,7 +572,7 @@ def xbe_patch(xbe, to_new):
         open(xbe, 'wb').write(d)
     state = 'patched' if to_new else 'original'
     if text:
-        print(f'  default.xbe: {len(XBE_TEXT)} inventory strings ({state})')
+        print(f'  default.xbe: {len(XBE_TEXT)} strings: inventory, loading screen ({state})')
     if code:
         print(f'  default.xbe: wide sprintf copies whole characters ({state}); '
               'regenerate and build (./regen.sh, cmake --build)')
@@ -608,7 +611,7 @@ def main(argv):
         print(f'russian: text {"in Russian: " + ", ".join(sdb) if sdb else "English"}; '
               f'fonts {"with Cyrillic" if fnt else "original"}; '
               f'default.xbe code fixes {patched(XBE_SITES)}/{len(XBE_SITES)}, '
-              f'inventory strings {"Russian" if patched(xbe_text_sites()) else "English"}')
+              f'XBE strings {"Russian" if patched(xbe_text_sites()) else "English"}')
         return 0
     if cmd == 'apply':
         x = xbe_patch(xbe, True)

@@ -81,8 +81,9 @@ Switching back and forth needs no rebuild.
 - **Text:** all of `gtext.sdb` (dialogue, quests, menus, hints, subtitles), the
   display names in `global.sdb` / `deftexte.sdb` (items, armour, weapons,
   characters) and in each level's own `resx\c*\<LEVEL>\<LEVEL>.sdb` (enemies,
-  people, objects), and the inventory's labels inside the XBE (`Experience:`,
-  `Cost: %d`, `No Items`...). The translation is kept in `tools/ru/`.
+  people, objects), and the strings inside the XBE: the inventory's labels
+  (`Experience:`, `Cost: %d`, `No Items`...) and the loading screen's
+  `Loading...`. The translation is kept in `tools/ru/`.
 - **Encoding:** several of the game's paths are 8-bit (item names in
   "Pick up %s", the XBE's own strings, save names), so the text goes in as cp1251
   code points rather than U+04xx, and the fonts draw those codes with Cyrillic.
@@ -98,8 +99,8 @@ Switching back and forth needs no rebuild.
   each checked against the original; that is why the regenerate-and-build step is
   needed.
 - **Both languages stay installed.** Every `.sdb` has `.sdb.en` and `.sdb.ru` side
-  by side, and `default.xbe` has `.en` and `.ru` (the same code, the inventory
-  labels in either language); the launcher copies the chosen set into place before
+  by side, and `default.xbe` has `.en` and `.ru` (the same code, the XBE's
+  strings in either language); the launcher copies the chosen set into place before
   each start.
 - **Stays English:** level names (save names), the folder name of each level
   (`TUTORIAL` is a path), text drawn into textures (the compass letters) and movies
