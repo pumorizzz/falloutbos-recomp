@@ -570,6 +570,7 @@ def fonts_apply(resx):
 # as "%cВыбрать %u  %cНазад" comes out as "K1@0BL" (ы = U+044B -> 'K').
 # `mov ax, word ptr [ebx]` + nop copies the whole character. The code changes,
 # so the generated C has to be redone afterwards (./regen.sh, then build).
+# The launcher checks these ten VAs too (k_code_va): keep the lists alike.
 XBE_SITES = [(0x00072D46, bytes.fromhex('660FB603'), bytes.fromhex('668B0390'))]
 
 # 8-bit text widened to UTF-16 with a sign: `movsx r16, r8`. A byte >= 0x80
