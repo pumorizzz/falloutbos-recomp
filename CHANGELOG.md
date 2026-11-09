@@ -117,7 +117,10 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
   "Wasteland" the translation had dropped is back in nine of them. So do the
   menus, perks, skills, prompts ("} Открыть Дверь"), speakers' names and the
   inventory labels in the XBE ("Нет Вещей"); `apply` and `revert` take the
-  earlier lowercase labels in `default.xbe` as their own.
+  earlier lowercase labels in `default.xbe` as their own. In the lines,
+  speakers' names take capitals too ("Матрона Рейдеров:"), speech cut off with
+  a dash in the original ends with one ("Мы —"), and "?!?" and the questions
+  the translation had turned into statements follow the original.
 - The launcher set the Russian XBE strings into a `default.xbe` without
   `russian.py`'s code fixes (the disc unpacked again, the `.en`/`.ru` set left),
   and the inventory's labels came out cut to "..."; it now refuses and asks for
