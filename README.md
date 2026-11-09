@@ -4,17 +4,13 @@
 > maintained by [pumorizzz](https://github.com/pumorizzz) and forked from
 > [sp00nznet/falloutbos-recomp](https://github.com/sp00nznet/falloutbos-recomp).
 > The original project and the xboxrecomp toolkit are by
-> [sp00nznet](https://github.com/sp00nznet). The fork's work is on the
-> `gpu-rastr` branch: the D3D11 render back end (`RECOMP_GPU_RASTER`), the
-> 60 fps cap and the fix for the Bink video blocks. It builds against the
-> toolkit fork [pumorizzz/xboxrecomp](https://github.com/pumorizzz/xboxrecomp)
-> (`gpu-rastr`).
+> [sp00nznet](https://github.com/sp00nznet). This fork adds a Direct3D 11
+> render back end, the graphics and stability fixes it took to play the
+> Tutorial and Carbon, and a one-click setup. It builds against the toolkit
+> fork [pumorizzz/xboxrecomp](https://github.com/pumorizzz/xboxrecomp), branch
+> `gpu-rastr`.
 
 ![Fallout: Brotherhood of Steel recompiled: the main menu, then Nadia in Carbon](docs/images/hero.gif)
-
-*Recorded headless from `fbos.exe`: the scripted pad from `tools/boot_check.py`,
-then the left stick and fire. Every presented frame, played back at the 10 fps
-it ran at while dumping them (about 17 fps without the dumps).*
 
 Static recompilation of **Fallout: Brotherhood of Steel (Xbox, 2004)** to a
 native Windows executable, using [xboxrecomp](https://github.com/sp00nznet/xboxrecomp).
@@ -31,23 +27,20 @@ derived from your own disc and is never distributed; you produce it locally.
 
 ## Status
 
-**v0.1.0-dev, alpha.** It boots with no arguments and nothing forced, and the
-modelled Xbox controller drives it: through the main menu, character and
-difficulty select, chapter 1's intro, and into the first level, Carbon, with
-Nadia on screen, the HUD up and the world textured. 0 faults and 0 unresolved
-indirect calls in a 270 s scripted run.
+**Playable from power-on through the Tutorial and Carbon** (to the warehouse
+radscorpions and back to the mayor), with a pad or the keyboard, saving to the
+hard disk as it goes.
 
-Not yet good: the software rasteriser runs the level at about 17 fps (5 before
-xboxrecomp [#228](https://github.com/sp00nznet/xboxrecomp/pull/228), 15 after
-it, 17 with [#231](https://github.com/sp00nznet/xboxrecomp/pull/231)), and no one
-has played past the opening dialogue yet.
-
-![Fallout: Brotherhood of Steel (Xbox) recompiled, in Carbon](docs/images/carbon.png)
-
-![The main menu](docs/images/main-menu.png) ![Difficulty select](docs/images/difficulty.png)
-
-*`fbos.exe` with `RECOMP_PB_EXEC=1`, captured from the surface the title's own
-pushbuffer drew into. The level shot was reached headless with a scripted pad.*
+- **Drawn on the GPU** (Direct3D 11) by default, presented straight from a
+  swapchain, capped at 60 fps. With the cap lifted, Carbon's spawn point
+  runs at about 146 fps and Ruby's bar at about 130 fps (RTX 3080 Ti); the
+  CPU rasteriser, still there with `RECOMP_GPU_RASTER=0`, manages about 17.
+- **Checked frame by frame against a PS2 playthrough** of the same places
+  (there is no Xbox capture to compare with): steam, lasers, radiation pools,
+  pit, crates, character shadows, grenade explosions, Carbon's streets, bar
+  and warehouse.
+- **0 faults and 0 unresolved indirect calls**; `boot_check` 8/8 on both the
+  CPU and the GPU path.
 
 | Step | State |
 |---|---|
@@ -58,24 +51,147 @@ pushbuffer drew into. The level shot was reached headless with a scripted pad.*
 | D3D device + display mode | done: 640x480 X8R8G8B8 |
 | DirectSound / APU | done: the title starts the APU itself, streams create |
 | Async file streaming | done: needs deferred I/O APCs (see [docs/boot.md](docs/boot.md)) |
-| Bink FMV | plays: Interplay logo, intro, menu background |
-| Main menu | done |
+| Bink FMV | done: Interplay logo, intro, menu background, no block artifacts |
 | Controller | done: the title's own USB stack enumerates the modelled pad |
-| Menus to gameplay | done: character select, difficulty, chapter intro, Carbon |
-| Gameplay | renders at ~17 fps; not played past the opening |
+| Menus to gameplay | done: character select, difficulty, chapter intro |
+| Tutorial | **played through**, graphics match the PS2 reference |
+| Carbon | **played** to the warehouse and back, graphics match the PS2 reference |
+| Saves | written to `saves\UDATA\49500008` |
+| Later chapters | not played yet |
 
-What it took, and why, is in [docs/boot.md](docs/boot.md).
+What it took to boot, and why, is in [docs/boot.md](docs/boot.md).
 
-### Conformance
+## Screenshots
+
+*From live play with `Play.cmd`, GPU path, 60 fps.*
+
+### Tutorial
+
+| | | |
+|:---:|:---:|:---:|
+| ![Laser grid](docs/images/tutorial-lasers.jpg) | ![Steam vents](docs/images/tutorial-steam.jpg) | ![Radiation pools](docs/images/tutorial-radiation.jpg) |
+| Laser grid: the beams' glow is point sprites | Steam vents, point sprites too | Radiation pools and barrels |
+| ![Radioactive pit](docs/images/tutorial-pit.jpg) | ![Melee robot](docs/images/tutorial-robot.jpg) | ![Grenade explosion](docs/images/tutorial-grenade.jpg) |
+| The radioactive pit, green as on the PS2 | Melee training | A frag grenade: debris, scorch mark, damage |
+
+### Carbon
+
+| | | |
+|:---:|:---:|:---:|
+| ![Raiders in Carbon](docs/images/carbon-intro.jpg) | ![Carbon's streets](docs/images/carbon-street.jpg) | ![Ruby](docs/images/carbon-ruby.jpg) |
+| The opening cut-scene | Carbon's streets | Ruby |
+| ![The bar](docs/images/carbon-bar.jpg) | ![The mayor](docs/images/carbon-mayor.jpg) | ![Radscorpions](docs/images/carbon-radscorpions.jpg) |
+| The bar fight | The mayor | Radscorpions in the warehouse |
+| ![Warehouse lamp](docs/images/carbon-warehouse.jpg) | ![Toxic pools](docs/images/carbon-toxic.jpg) | ![Main menu](docs/images/gpu-main-menu.jpg) |
+| Lamplight in the warehouse | Toxic pools | Back to the main menu |
+
+## What this fork fixed
+
+Everything below lives in the toolkit fork's `gpu-rastr` branch unless it says
+"port"; each toolkit change has a test in `deps/xboxrecomp/tests`.
+
+### Rendering on the GPU
+
+- **Direct3D 11 back end** (`RECOMP_GPU_RASTER`). The executor still
+  transforms and clips on the CPU; the GPU rasterises with depth and stencil,
+  and the NV2A register combiners run in one ubershader, a line-for-line port
+  of the software path's combiner. Frames are presented from a swapchain, and
+  colour surfaces reach guest RAM only when the title can see them (flip,
+  texture decode, eviction).
+- **Render targets used as textures** stay on the GPU: the main frame's
+  downsample, the swizzled HUD target and the character shadow atlas are read
+  straight from the render target, not through a write-back per draw.
+- **Device loss** (driver reset, TDR) hands drawing back to the CPU
+  rasteriser at the next flip instead of crashing.
+- `RECOMP_GPU_RASTER=compare` draws every frame on both paths and reports how
+  far they differ.
+
+### Graphics, on both paths
+
+- **Particles were missing altogether.** Point sprites (`BEGIN_END 1`) were not
+  drawn: steam (so it hurt with nothing visible), laser glow, radiation pools,
+  smoke and the shadow atlas. They are drawn now, sized in screen pixels.
+- **Red, oversaturated crates and target robots.** Fallout's lighting program
+  multiplies garbage light colours (`inf`) by a zero intensity; on NV2A a
+  product with 0 is 0, in the interpreter it was NaN. `MUL`/`MAD` now follow
+  the hardware, with a vectorised mask so it costs nothing.
+- **The radioactive pit was opaque black.** An input with no vertex array reads
+  the last `SET_VERTEX_DATA*` value, which is how the liquid gets its
+  translucent green.
+- **Character shadows fell apart.** The shadow target is swizzled; it is now
+  read as such.
+- **Explosion decals flickered**: polygon offset was ignored.
+- **Needles and slabs near the camera.** Triangles behind the near plane are
+  clipped against `SET_CLIP_MIN` geometrically and against `SET_CLIP_MIN/MAX`
+  per pixel. On the GPU, depth beyond `zmax` no longer clamps to 1.0 and
+  punches black stripes into Carbon's floor.
+- **A stale render target overwrote memory the title had reused** (with heap
+  reclaim on): it is now dropped instead of written back. This was the likely
+  cause of orange "splinters" in grenade explosions.
+- **White and coloured blocks in Bink video** were a lifter bug, not graphics:
+  `movsx ebp, bp` zero-extended, and Bink's inverse DCT read negative
+  coefficients as large positive ones. The build re-runs `./regen.sh` by
+  itself when the toolkit's codegen changes.
+- **Lost pushbuffer commands at the ring's wrap** (a menu frame without its
+  Bink background, a wedge of garbage vertices, a black frame): the port walks
+  the ring like the DMA engine does (`RECOMP_PB_WALK=dma`, port default).
+
+### Stability
+
+- **Hang loading the Tutorial.** The executor now owns the D3D fence: it
+  signals D3D's BlockOnFence event as it retires work, and a lost kick-off
+  (D3D is not thread-safe, the title's threads run on several cores) is
+  kicked after 250 ms.
+- **Out of contiguous memory after ten minutes in the Tutorial**: freed memory
+  is reclaimed by default (`RECOMP_HEAP_RECLAIM=1`, port).
+- **Freeze on the main menu with `intro.bik` looping.** Fallout closes its
+  `.clp` archive handles twice at every load; when the freed handle went
+  straight to the next object, the second close destroyed a Bink worker's
+  event under it. Handles are now handed out in turn.
+  `NtDuplicateObject(DUPLICATE_CLOSE_SOURCE)` releases the source handle (and
+  its async-I/O mark) the same way.
+
+### Speed
+
+- The vertex program is decoded once per program, not once per vertex, and an
+  index list's repeated vertices are transformed once.
+- Vertex programs of large batches run on several threads, bit for bit as on
+  one (`RECOMP_VSH_THREADS`): by Ruby's bar, uncapped, 66 → 130 fps.
+- A 10-second stutter is gone: the executor's periodic report no longer reads
+  the GPU's render targets back.
+- 60 fps cap at the flip by default (`RECOMP_FPS_LIMIT`); without it menus ran
+  at up to 1000 fps and menu input misbehaved.
+
+### Setup and play (port)
+
+- `Setup.cmd`: checks and (after asking) installs the prerequisites, finds the
+  disc image, unpacks it, generates the C and builds; resumes where it
+  stopped. Without network it keeps the toolkit already there and says git's
+  own reason.
+- `Play.cmd`: windowed, GPU by default, pad or keyboard; F9 records your input
+  into `saves\pad_path.txt`, F10 plays it back.
+
+## Checks
 
 | Check | Result | Command |
 |---|---|---|
-| Boot milestones, Interplay logo to Carbon, scripted pad | **8/8** | `py -3 tools/boot_check.py` |
+| Boot milestones, Interplay logo to Carbon, scripted pad | **8/8**, CPU and GPU path | `py -3 tools/boot_check.py`, `RECOMP_GPU_RASTER=1 py -3 tools/boot_check.py` |
+| Toolkit tests for this work (D3D11 back end on WARP, combiners, FFP, batches, vertex programs and threads, near clip, points, fence, kernel bridge) | 10 suites, all pass | each `deps/xboxrecomp/tests/<name>`: `cmake -S . -B build && cmake --build build --config Release && ctest --test-dir build -C Release` |
 | The title's own functions, native vs lifted (xboxrecomp `--xbe`, with #229) | 269 vectors, **3 mismatches** (x87 exception flags; one scratch overrun) | `(cd deps/xboxrecomp && py -3 -m tools.conformance --only corpus --xbe ../../game/default.xbe --xbe-limit 400)` |
+| Live play against a PS2 playthrough | Tutorial and Carbon match | by eye, frame by frame |
 
 `boot_check` fails only on a regression against `config/boot_check_baseline.json`,
 and prints SKIP on a machine without game data. It is the netlab QA step
 (`netlab check falloutbos-recomp`).
+
+### Known issues
+
+- A stippled floor and dotted floor tiles with black holes were seen in a few
+  early runs; neither shows in live play with the current build, and their
+  cause was not proven.
+- Lines (`BEGIN_END` 2-4) are not drawn; the Tutorial never uses them.
+- After a GPU device loss, whatever lived only on the GPU (the frame in
+  progress, depth) is gone, and one frame shows the previous image.
 
 ## Getting Started
 
@@ -84,9 +200,8 @@ Nothing from the game is downloaded or included.
 
 ### Quick start
 
-1. Download the `gpu-rastr` branch of
-   [pumorizzz/falloutbos-recomp](https://github.com/pumorizzz/falloutbos-recomp/tree/gpu-rastr)
-   ([ZIP](https://github.com/pumorizzz/falloutbos-recomp/archive/refs/heads/gpu-rastr.zip),
+1. Download [pumorizzz/falloutbos-recomp](https://github.com/pumorizzz/falloutbos-recomp)
+   ([ZIP](https://github.com/pumorizzz/falloutbos-recomp/archive/refs/heads/main.zip),
    or clone it) and unpack it.
 2. Double-click **`Setup.cmd`**. It checks for Python, Git, CMake and the
    Visual Studio C++ build tools, and **asks before installing** anything
@@ -112,13 +227,12 @@ CMake 3.20+; Visual Studio 2022 or its Build Tools with the C++ workload.
 Use `py -3`, not `python`: the Microsoft Store alias for `python` is not a real
 install. After installing anything, open a new terminal so PATH picks it up.
 
-1. Get this repo and the toolkit. The port needs toolkit changes still in
-   review (see [Toolkit changes](#toolkit-changes)); `gpu-rastr` in
-   [pumorizzz/xboxrecomp](https://github.com/pumorizzz/xboxrecomp) has them all,
-   plus the D3D11 back end and the lifter fix for the Bink blocks:
+1. Get this repo and the toolkit. The port needs toolkit changes not upstream
+   yet (see [Toolkit changes](#toolkit-changes)); `gpu-rastr` in
+   [pumorizzz/xboxrecomp](https://github.com/pumorizzz/xboxrecomp) has them all:
 
    ```bash
-   git clone --branch gpu-rastr https://github.com/pumorizzz/falloutbos-recomp falloutbos
+   git clone https://github.com/pumorizzz/falloutbos-recomp falloutbos
    cd falloutbos
    git clone --branch gpu-rastr https://github.com/pumorizzz/xboxrecomp deps/xboxrecomp
    ```
@@ -156,7 +270,7 @@ install. After installing anything, open a new terminal so PATH picks it up.
 5. Run from the repo root (it reads `game/default.xbe`), or use `Play.cmd`:
 
    ```bash
-   RECOMP_PB_EXEC=1 RECOMP_FB_WINDOW=1 RECOMP_KEYBOARD=1 ./bin/fbos.exe
+   RECOMP_PB_EXEC=1 RECOMP_FB_WINDOW=1 RECOMP_KEYBOARD=1 RECOMP_GPU_RASTER=1 ./bin/fbos.exe
    ```
 
 ## Usage
@@ -165,6 +279,14 @@ install. After installing anything, open a new terminal so PATH picks it up.
 |---|---|
 | `RECOMP_PB_EXEC=1` | execute the title's NV2A pushbuffer, so it actually draws |
 | `RECOMP_FB_WINDOW=1` | show the framebuffer in a window. Off by default: runs are headless |
+| `RECOMP_GPU_RASTER=1` \| `warp` \| `compare` | rasterise on the GPU (Direct3D 11) instead of the CPU: `1` a hardware adapter (WARP if none), `warp` the WARP software adapter, `compare` both paths draw and each flip prints how far the GPU differs from the software result, `0` the CPU. `Play.cmd` sets `1` unless it is already set; `fbos.exe` alone draws on the CPU. Needs `RECOMP_PB_EXEC=1`; without a D3D11 device it stays on the CPU |
+| `RECOMP_FPS_LIMIT=<hz>` | cap the frame rate at the flip, standing in for vblank: 60 by default, `0` turns it off. Without it menus and loading screens run at up to 1000 fps and menu input misbehaves |
+| `RECOMP_VSH_THREADS=N` | threads for a batch's vertex programs, the executor included (default: half the logical processors, at most 16); `1` runs them all on the executor |
+| `RECOMP_PB_WALK=dma` | walk the pushbuffer ring as the DMA engine does; the port sets it, since the toolkit's default walk loses commands at the ring's wrap |
+| `RECOMP_HEAP_RECLAIM=1` | reuse memory the title frees; the port sets it, or the Tutorial runs out of contiguous memory after about ten minutes |
+| `RECOMP_GPU_RASTER_PRESENT=0` | with `RECOMP_GPU_RASTER`, show the window through GDI from guest RAM instead of presenting from the GPU |
+| `RECOMP_GPU_RASTER_PRESENT_DUMP=prefix` | with `RECOMP_GPU_RASTER`, write every 30th shown frame (HUD included) as `prefixNNNNNN.bmp`; `RECOMP_GPU_RASTER_PRESENT_DUMP_EVERY=N` changes the interval |
+| `RECOMP_GPU_RASTER_LOSE_AT=<flip>` | with `RECOMP_GPU_RASTER`, act out a GPU device loss at that flip (the CPU rasteriser takes over) |
 | `RECOMP_FB_DUMP=prefix` | write frames as `prefix00000.bmp` ... |
 | `RECOMP_FB_DUMP_FLIPS=<file>` | dump every flip while `<file>` exists |
 | `RECOMP_WATCHDOG_SECS=N` | after N seconds, report where the guest is |
@@ -173,11 +295,7 @@ install. After installing anything, open a new terminal so PATH picks it up.
 | `RECOMP_PAD_SCRIPT="ms:button,..."` | scripted presses for headless runs, e.g. `25000:start,35000:a` |
 | `RECOMP_PAD_RECORD=<file>` | in the window, F9 records pad 1 into `<file>` (on/off), F10 plays it back from that moment; timed in flips. `Play.cmd` uses `saves\pad_path.txt`; a line `replay` in `RECOMP_PAD_LIVE` also plays it. `RECOMP_PAD_RECORD_FROM_START=1` records from the window opening on, `=play` replays such a recording from there |
 | `RECOMP_USB_STATS=1` | controller transfer counts every few seconds |
-| `RECOMP_GPU_RASTER=1` \| `warp` \| `compare` | rasterise on the GPU (Direct3D 11) instead of the CPU: `1` a hardware adapter (WARP if none), `warp` the WARP software adapter, `compare` both paths draw and each flip prints how far the GPU differs from the software result, `0` the CPU. `Play.cmd` sets `1` unless it is already set; `fbos.exe` alone draws on the CPU. Needs `RECOMP_PB_EXEC=1`; without a D3D11 device it stays on the CPU |
-| `RECOMP_FPS_LIMIT=<hz>` | cap the frame rate at the flip, standing in for vblank: 60 by default, `0` turns it off. Without it menus and loading screens run at up to 1000 fps and menu input misbehaves |
-| `RECOMP_GPU_RASTER_PRESENT=0` | with `RECOMP_GPU_RASTER`, show the window through GDI from guest RAM instead of presenting from the GPU |
-| `RECOMP_GPU_RASTER_PRESENT_DUMP=prefix` | with `RECOMP_GPU_RASTER`, write every 30th shown frame (HUD included) as `prefixNNNNNN.bmp`; `RECOMP_GPU_RASTER_PRESENT_DUMP_EVERY=N` changes the interval |
-| `RECOMP_RASTER_THREADS=N` | rasteriser worker threads (default: logical cores - 4). On a 6-core/12-thread CPU, 10 gave about 19 fps against 17; 12 starves the game and drops to 9 |
+| `RECOMP_RASTER_THREADS=N` | CPU rasteriser worker threads (default: logical cores - 4). On a 6-core/12-thread CPU, 10 gave about 19 fps against 17; 12 starves the game and drops to 9 |
 | `FBOS_PROFILE=<start>,<secs>` | sample every thread for `<secs>` seconds starting at `<start>`, print the top functions per thread |
 
 `RECOMP_AC97_READY` and `RECOMP_USB` are set by `main.c` itself: the title
@@ -227,7 +345,7 @@ Found by this port, each on its own branch in xboxrecomp:
 | `perf/raster-batch-rows` ([#228](https://github.com/sp00nznet/xboxrecomp/pull/228)) | rasterise a draw's triangles together on the worker pool: 5.5 → 15 fps in Carbon |
 | `perf/nv2a-quiet-poll` ([#230](https://github.com/sp00nznet/xboxrecomp/pull/230)) | no stderr line per pushbuffer kick under `RECOMP_PB_EXEC`: menus 20-22 → 25-28 fps |
 | `perf/raster-pipeline` ([#231](https://github.com/sp00nznet/xboxrecomp/pull/231), on #228) | batches drawn by the workers while the executor decodes the next: 15.5 → 17.4 fps in Carbon |
-| `gpu-rastr` ([pumorizzz/xboxrecomp](https://github.com/pumorizzz/xboxrecomp), on `work/falloutbos`) | `RECOMP_GPU_RASTER`: a D3D11 render back end — triangles the executor transformed and clipped, rasterised on the GPU with depth, stencil and the register combiners in one ubershader, colour surfaces written back to guest RAM at every executor sync |
+| `gpu-rastr` ([pumorizzz/xboxrecomp](https://github.com/pumorizzz/xboxrecomp), on `work/falloutbos`) | everything in [What this fork fixed](#what-this-fork-fixed): the D3D11 back end, the graphics fixes on both paths, the fence, handle and speed work, with tests |
 | community PR #186 | `pushfd`/`popfd`/`cpuid` lifted as the hardware does them. Until it lands, `recomp_manual.c` overrides the one function that needs it |
 
 ## License
