@@ -242,7 +242,10 @@ Nothing from the game is downloaded or included.
    An existing setup that runs it again is patched and rebuilt. Expect 10-20 minutes the
    first time, most of it the build. If it stops, it says why in one sentence
    and keeps the details in `setup.log`; running it again resumes.
-3. Double-click **`Play.cmd`**. An XInput controller (Xbox 360/One pad) is
+3. Double-click **`bin\FalloutLauncher.exe`** to pick the render resolution,
+   the picture size, full screen and anti-aliasing, then Play (the choice is
+   kept in `bin\launcher.ini`) -- or **`Play.cmd`** for the defaults. An
+   XInput controller (Xbox 360/One pad) is
    player 1; the keyboard works too: WASD left stick, IJKL right stick,
    Z/X/C/V = A/B/X/Y, Enter = Start, Backspace = Back, 1/3 = triggers.
    F9 starts and stops recording what you do into `saves\pad_path.txt`; F10

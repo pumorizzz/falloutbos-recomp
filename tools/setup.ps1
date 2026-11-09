@@ -154,5 +154,5 @@ if ($ToolkitUpdated -or $WidescreenChanged -or -not (Test-Path (Join-Path $Root 
 } else { Say "Already built: bin\fbos.exe" }
 
 Say ""
-Say "Done. Double-click Play.cmd in $Root to start the game."
+Say "Done. Double-click bin\FalloutLauncher.exe (resolution, anti-aliasing) or Play.cmd in $Root to start the game."
 Read-Host "Press Enter to close"

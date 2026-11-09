@@ -60,3 +60,6 @@ add_subdirectory(${XBOXRECOMP_DIR} ${CMAKE_BINARY_DIR}/xboxrecomp)
 # ── Recompiled game executable ─────────────────────────────
 add_subdirectory(src/game)
 
+
+# ── Launcher (render resolution, picture size, anti-aliasing) ──
+add_subdirectory(tools/launcher)
