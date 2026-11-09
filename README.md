@@ -68,6 +68,9 @@ You need your own **Fallout: Brotherhood of Steel (USA)** disc image (`.iso`).
 
 ## Russian translation
 
+In Git Bash, in the game's folder (right-click it, *Open Git Bash here*; Git for
+Windows, which `Setup.cmd` installs, brings it):
+
 ```bash
 py -3 -m pip install pillow
 py -3 tools/russian.py apply

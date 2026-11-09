@@ -259,12 +259,17 @@ static int set_xbe_strings(HWND owner, const char *lang)
     /* Russian needs the code fixes in the game; English is the original. */
     if (want == ru && (fixes = exe_code_fixes()) >= 0) {
         if (fixes != COUNT(k_code_va)) {
-            MessageBoxA(owner, "bin\\fobos.exe was built from a default.xbe without the code "
-                               "fixes of tools\\russian.py, and the Russian text would come out "
-                               "cut to \"...\". Run\n\n"
-                               "py -3 tools\\russian.py apply\n./regen.sh\n"
-                               "cmake --build build-msvc --config Release",
-                        "Fallout: Brotherhood of Steel", MB_ICONERROR);
+            /* regen.sh is a bash script: Git Bash, from Git for Windows,
+             * which Setup installs. */
+            char msg[MAX_PATH + 512];
+            snprintf(msg, sizeof msg,
+                     "bin\\fobos.exe was built from a default.xbe without the code fixes of "
+                     "tools\\russian.py, and the Russian text would come out cut to \"...\".\n\n"
+                     "Open Git Bash in %s (right-click the folder, \"Open Git Bash here\"; "
+                     "it comes with Git for Windows, which Setup installed) and run:\n\n"
+                     "py -3 tools/russian.py apply\n./regen.sh\n"
+                     "cmake --build build-msvc --config Release", s_root);
+            MessageBoxA(owner, msg, "Fallout: Brotherhood of Steel", MB_ICONERROR);
             goto out;
         }
     } else if (want == ru)

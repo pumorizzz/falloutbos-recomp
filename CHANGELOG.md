@@ -118,6 +118,8 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
   builds into the C a mark of the code fixes the XBE had
   (`russian.py code-mark`, `gen/recomp_fbos_mark.c`), and the launcher reads it
   from `bin\fobos.exe`; an exe from before the mark still gets the XBE check.
+  Its message, and the README's Russian section, say where `./regen.sh` runs:
+  in Git Bash (Git for Windows, from Setup), opened in the game's folder.
 - A fresh clone with no `src/game/recomp/gen/` built nothing and failed at the
   link: CMake now runs `regen.sh` when `game/default.xbe` is there, and stops
   with a plain message when it is not.
