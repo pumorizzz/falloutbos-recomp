@@ -36,7 +36,8 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
   "K1@0BL"), and the 8-bit-to-wide copies widened with a sign ("Pick up %s" was
   cut to "...").
 - Launcher: Language, English (original) or Russian; it copies the chosen set
-  of `game\resx\*.sdb` into place before the start.
+  of `game\resx\*.sdb` and `game\default.xbe` (`.en`/`.ru`) into place before
+  the start.
 - README rewritten around the current build, with new 16:9 screenshots; the old
   4:3 screenshots and the GIF are gone.
 - `bin\FalloutLauncher.exe` (`tools/launcher`): render resolution, picture
