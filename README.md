@@ -179,6 +179,17 @@ Everything below lives in the toolkit fork's `gpu-rastr` branch unless it says
   Xbox set to widescreen, and the port shows that frame at 16:9.
   `py -3 tools/widescreen.py revert` restores the 4:3 image (kept as
   `game\default.xbe.4x3`); regenerate and build afterwards.
+- **Russian** (port, `tools/russian.py`, needs `pip install pillow`):
+  `py -3 tools/russian.py apply` puts the Russian text into
+  `game\resx\*.sdb` and draws Cyrillic into the game's three fonts inside
+  `sfx.clp`. The text is UTF-16 already, and the game finds a glyph by its
+  Unicode code point; the one code fix is the game's wide `sprintf`
+  (0x72D20), which kept only the low byte of a format's own characters
+  (4 bytes of `default.xbe`; regenerate and build afterwards). 71 glyphs
+  (А-я, Ё, ё, « » – — №) are drawn from PT Sans (SIL OFL, `tools/ru/fonts`)
+  in the fonts' own style under their atlases. The translation is in
+  `tools/ru/` by string hash; `revert` restores the English files (kept as
+  `*.en`). Text drawn into textures and movies stays English.
 - **Picture size and aspect** (toolkit): the window and the swap chain
   follow the window's size, the frame is filtered into the largest rectangle
   of the display aspect with bars around it (`RECOMP_FB_ASPECT`,

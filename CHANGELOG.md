@@ -25,6 +25,12 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
 - Internal resolution and MSAA on the GPU path (`RECOMP_GPU_RASTER_SCALE`,
   `RECOMP_GPU_RASTER_MSAA`): targets and depth drawn N times larger with
   multisampling, read back to guest RAM averaged; `Play.cmd` uses 3x3 + 4x.
+- Russian: `tools/russian.py apply` translates `gtext.sdb` (dialogue, quests,
+  menus, hints), item and character names in `global.sdb`/`deftexte.sdb`, and
+  adds Cyrillic drawn from PT Sans to the three fonts in `sfx.clp`; `revert`
+  restores English. One code fix, 4 bytes of `default.xbe`: the game's wide
+  `sprintf` kept only the low byte of a format's own characters, so
+  "%cВыбрать %u  %cНазад" under character select read "K1@0BL ... 0704".
 - `bin\FalloutLauncher.exe` (`tools/launcher`): render resolution, picture
   size, full screen, MSAA and the frame-rate limit (30, 60 or 120), then the game; remembered in `bin\launcher.ini`.
 
