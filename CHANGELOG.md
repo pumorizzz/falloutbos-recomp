@@ -5,6 +5,46 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
 
 ## [Unreleased]
 
+### Added (GPU rendering and play, 2026-10-30 to 2026-11-09)
+- Direct3D 11 render back end (`RECOMP_GPU_RASTER`, toolkit `gpu-rastr`):
+  depth, stencil, the register combiners in one ubershader, presented from a
+  swapchain; `compare` mode; device loss falls back to the CPU rasteriser.
+  `Play.cmd` draws on the GPU by default.
+- 60 fps cap at the flip (`RECOMP_FPS_LIMIT`, `0` turns it off).
+- F9/F10 in the window: record the pad into `saves\pad_path.txt`, play it back.
+- Vertex programs of large batches on several threads (`RECOMP_VSH_THREADS`),
+  bit for bit as on one: by Ruby's bar, uncapped, 66 -> 130 fps.
+- README: what the fork fixed, the checks, and screenshots of the Tutorial and
+  Carbon.
+
+### Fixed (GPU rendering and play)
+- Particles were not drawn at all (point sprites): steam, laser glow,
+  radiation pools, smoke, the shadow atlas.
+- Red, oversaturated crates and target robots: 0 x inf is 0 in `MUL`/`MAD`, as
+  on NV2A.
+- The radioactive pit drawn opaque black: an input with no array reads its
+  last `SET_VERTEX_DATA*` value.
+- Character shadows: the swizzled shadow target is read as swizzled.
+- Flickering explosion decals: polygon offset applied.
+- Needles, slabs and black floor stripes near the camera: near-plane clip at
+  `SET_CLIP_MIN`, per-pixel `SET_CLIP_MIN/MAX`, depth beyond `zmax` rejected on
+  the GPU.
+- A stale render target written over memory the title had reused (likely the
+  orange "splinters" in grenade explosions).
+- Lost pushbuffer commands at the ring's wrap: the port walks the ring as DMA
+  does (`RECOMP_PB_WALK=dma`).
+- Hang loading the Tutorial: the executor owns the D3D fence and kicks a lost
+  kick-off.
+- Out of contiguous memory after ten minutes in the Tutorial: freed memory is
+  reclaimed by default (`RECOMP_HEAP_RECLAIM=1`).
+- Main-menu freeze with `intro.bik` looping: Fallout closes its `.clp` handles
+  twice; handle tokens are now handed out in turn, and
+  `DUPLICATE_CLOSE_SOURCE` releases the source token and its async-I/O mark.
+- A stutter every 10 seconds: the executor's report no longer reads render
+  targets back.
+- `Setup.cmd` without network keeps the toolkit already there and gives git's
+  own reason.
+
 ### Added
 - Project from the xboxrecomp new-game template and the Half-Life 2 port's
   layout: `regen.sh`, CMake, `main.c`, netlab recipe `falloutbos-recomp`.

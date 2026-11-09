@@ -1,48 +1,50 @@
 # Roadmap
 
+## Done
+- Power-on to gameplay with no arguments; Tutorial played through, Carbon
+  played to the warehouse and back, graphics checked against a PS2
+  playthrough frame by frame. Saves are written to `saves\UDATA\49500008`.
+- GPU rasterisation (`RECOMP_GPU_RASTER`, toolkit `gpu-rastr`): Direct3D 11,
+  presented from a swapchain, the default in `Play.cmd`. RTX 3080 Ti with the
+  60 fps cap lifted: Carbon spawn about 146 fps, Ruby's bar about 130 (66
+  before the vertex programs ran on several threads); the CPU rasteriser about
+  17. What it fixed on the way is in the README, "What this fork fixed".
+
 ## Next
-- Speed in the level: ~17 fps with #231; the executor is 25% busy and the
-  raster workers about 60%. Left on the table:
-  - Workers stall at every scan end (drain before DMA_GET). A drain only at
-    fences and reports would need the 0x400B10 latch modelled in the default
-    segment scan: removing KickOff's flush wait (tried, reverted) let the
-    title run ahead into `sub_000AB760`, which waits on that latch for ever.
-  - The pixel loop itself (combiners per pixel, no SIMD).
-  - On a busy host the NV2A polling thread's `Sleep(0)` loses its core, and
-    every kickoff waits a time slice; fps then halves.
-- GPU rasterisation (`RECOMP_GPU_RASTER`, toolkit branch `gpu-rastr`): the
-  executor's triangles drawn on D3D11 and presented from the GPU into the
-  framebuffer window (no readback per flip). Carbon, RTX 3080 Ti, with
-  `RECOMP_FPS_LIMIT=200`, same session A/B: Carbon spawn 77 -> 146 fps, by
-  Ruby and the bar 43 -> 98 fps (60 with the default cap), after the vertex
-  program interpreter stopped re-decoding every instruction per vertex and an
-  index list's repeated vertices stopped being transformed again. Pixels
-  outside SET_CLIP_MIN/MAX are no longer drawn on either path, which takes
-  off the needles and slabs that near-plane-clipped triangles fanned across
-  the screen by the bar. Compare differs only in the "camera wedge" frames.
-  Not done: an fps reading right after leaving Ruby's dialog with this build
-  (the scripted walk to Ruby is timed in flips and misses her once the game
-  runs faster; townspeople also block it). Stippled floor tiles: seen in
-  some runs only, when the frame is resolved through guest RAM; a batch whose
-  first vertex was NaN left no dirty rectangle (fixed), not yet proven to be
-  the cause. Triangles are now also clipped at the SET_CLIP_MIN plane, so
-  none reaches 1e5 pixels off screen (the slabs seen by walls). With a
-  re-recorded walk, Ruby's dialog and the bar after it hold 59-61 fps. Next:
-  the vertex programs on the GPU.
-- A camera fault seen once in Carbon (docs/images/known-camera-wedge.png): a
-  giant wedge fills the screen while the minimap is unchanged. Not reproduced
-  since; catch it with a frame trace.
+- Play past Carbon: later chapters have not been seen yet. Record the pass;
+  compare with the PS2 playthrough where one covers the same place.
+- Load a saved game: saves are written, loading has not been tried.
+- Merge the toolkit's `gpu-rastr` with upstream xboxrecomp v0.16.0 (98 commits
+  ahead; conflicts in `nv2a_pb_exec.c`, `tests/nv2a_vsh`, `tools/recomp/lifter.py`,
+  so a regen and a full re-check), then offer the fixes upstream and pin the
+  toolkit version; then delete the `sub_000A4E60` override.
 - Upstream the image-aliasing claim into xboxrecomp's contiguous allocator.
-- Get the three toolkit changes merged and pin the toolkit version; then delete
-  the `sub_000A4E60` override.
+
+## Watch for
+- A stippled floor, and dotted floor tiles with black holes in Carbon: seen in
+  early runs only, not in live play with the current build; cause unproven.
+  If either comes back, dump the frame there and try the CPU path
+  (`RECOMP_GPU_RASTER=0`) first.
+- The main-menu freeze with `intro.bik` looping: two holes in the handle table
+  are fixed (handles handed out in turn, `DUPLICATE_CLOSE_SOURCE`), but the
+  freeze never reproduced, so the link is not proven. If it comes back, keep
+  the process running and dissect it.
+
+## Only if needed
+- Vertex programs on the GPU (an HLSL interpreter of the NV2A program): only
+  if a later level is slow; profile first, to see whether the title's thread,
+  the executor or the GPU is the limit.
+- On the CPU rasteriser, the executor waits for the vertex-program helpers by
+  spinning; with more threads than cores that could cost a frame (not
+  observed). Fallback to a sleep after a while, or fewer helpers there.
+- Lines (`BEGIN_END` 2-4) are not drawn; nothing in the Tutorial uses them.
+- The "camera wedge" (docs/images/known-camera-wedge.png): huge triangles
+  after the near-plane clip that the CPU rasteriser computes in float; the
+  GPU path is not affected.
 
 ## Required by REPO_RULES, not done yet
 - `--headless --record out.mp4` (section 10): xboxrecomp has no ffmpeg pipe
   yet. Today: `RECOMP_FB_DUMP` frames, which work headless.
-
-## Later
-- Start New Game: load the first level.
-- Save games on the HDD partition (`UDATA\49500008`).
 
 ## Out of scope
 - Distributing game data or generated C, in any form.
