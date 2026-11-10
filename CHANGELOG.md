@@ -121,6 +121,13 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
   speakers' names take capitals too ("Матрона Рейдеров:"), speech cut off with
   a dash in the original ends with one ("Мы —"), and "?!?" and the questions
   the translation had turned into statements follow the original.
+- The Russian text checked against a full walkthrough video (OCR of a frame a
+  second, matched to the strings by hash): about 160 lines fixed. Lines to
+  and from the hero no longer assume a man where the hero may be Nadia
+  (Armpit's "Honey" line is hers), lost meanings and a pun are back, "?!?"
+  inside lines kept, a few prompts in the original's capitals, and the level
+  name "Vault Lab 1, mutated" back in English (level names go into save
+  names through an 8-bit path).
 - The launcher set the Russian XBE strings into a `default.xbe` without
   `russian.py`'s code fixes (the disc unpacked again, the `.en`/`.ru` set left),
   and the inventory's labels came out cut to "..."; it now refuses and asks for
