@@ -133,6 +133,11 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
   Matron, Ruby, the Shop-Tek and the hero's own replies no longer speak to a
   man only, Nadia's perk is "Женщина Будущего" (Future Woman), and two lines
   have their meaning and swearing back.
+- The rest of the Russian text checked for the hero's gender (lines with a
+  gendered form next to "я/ты/вы" or an address word, checked against both
+  walkthroughs): 33 lines to or from the hero no longer say "he" only (Jessie,
+  the raider Matron, Giese, the Mutant General and others, and the hero's own
+  "I'm outta here" replies), and one agreement error is fixed.
 - The launcher set the Russian XBE strings into a `default.xbe` without
   `russian.py`'s code fixes (the disc unpacked again, the `.en`/`.ru` set left),
   and the inventory's labels came out cut to "..."; it now refuses and asks for
