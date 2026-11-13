@@ -35,6 +35,10 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
   kept only the low byte of a format's own characters ("Выбрать" read
   "K1@0BL"), and the 8-bit-to-wide copies widened with a sign ("Pick up %s" was
   cut to "...").
+- Russian credits: each heading and role, and the thanks, get a Russian line
+  under the English one, like subtitles (in place of blank spacer lines; the
+  Russian text in the dashboard title image `$$XTIMAGE`). The level-up prompt
+  and the disc error's fallback lines inside the XBE are Russian too.
 - Launcher: Language, English (original) or Russian; before the start it
   copies the chosen set of `game\resx\*.sdb` (`.en`/`.ru`) into place and sets
   the XBE's strings in `game\default.xbe` from `default.xbe.en`/`.ru`, leaving

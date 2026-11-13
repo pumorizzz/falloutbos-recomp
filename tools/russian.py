@@ -22,9 +22,10 @@ U+0080..U+008F (written \\u0082 and so on in the TSV files).
 The text is written in cp1251 code points, not U+04xx (see CP1251): several
 of the game's paths keep only a byte. Besides gtext/global/deftexte, each
 level's own .sdb (resx/c*/<LEVEL>/<LEVEL>.sdb: object and enemy names) gets
-the names from tools/ru/global_names.py, and thirteen strings inside the XBE
-(the inventory's labels, the loading screen's "Loading...") are rewritten in
-place (XBE_TEXT).
+the names from tools/ru/global_names.py, sixteen strings inside the XBE
+(the inventory's labels, the loading screen's "Loading...", the level-up
+prompt, the disc error) are rewritten in place (XBE_TEXT), and the credits
+get a Russian line under each heading (CREDITS_RU).
 
 Translations: tools/ru/<name>.tsv and tools/ru/<name>/*.tsv, lines
 "hash<TAB>text" (hash as in the export, \\n for a line break). A string with
@@ -610,6 +611,11 @@ XBE_TEXT = [
     (0x000E4220, 12, 'No Items', 'Нет Вещей'),
     # the loading screen's caption (0x90444: gamefonta, 8-bit, at 280,396)
     (0x000E69DC, 12, 'Loading...', 'Загрузка...'),
+    # the level-up prompt (0x42141: widened by 0x72ED0, drawn wide)
+    (0x000E25AC, 28, ' Press BACK to Level Up ', ' Нажми BACK: Новый Уровень '),
+    # the disc error's fallback when gtext has no line for it (0x38C73, 8-bit)
+    (0x000E1990, 48, "There is a problem with the disc you're using.", 'Проблема с диском.'),
+    (0x000E1974, 28, 'It may be dirty or damaged.', 'Он загрязнён или повреждён.'),
 ]
 # Russian an earlier apply wrote there (before the labels took the original's
 # capitals): apply and revert take it as their own and rewrite it.
@@ -636,6 +642,148 @@ def xbe_text_sites():
     return out
 
 
+# The credits (0x43710) scroll a table of (style, char *) rows in .data up to
+# the row "END", each centred through the 8-bit 0x71A70; style 1 is a heading
+# (its own colour). The Russian goes under its English line, as a row of the
+# same style, like subtitles. The table cannot grow (other data follows it),
+# so the new rows take the place of blank spacer rows, and the Russian strings
+# go at the end of $$XTIMAGE: the title image for the Xbox dashboard, which
+# the game only copies into its save folder (TitleImage.xbx). Every section
+# stays resident in the port (XeUnloadSection only counts).
+CREDITS_VA, CREDITS_ROWS = 0x000EE300, 381
+CREDITS_POOL, CREDITS_POOL_END = 0x00673E40, 0x00674640      # last 2 KB of $$XTIMAGE
+CREDITS_RU = {
+    'Interplay Development': 'Разработка: Interplay',
+    'PRODUCTION': 'ПРОИЗВОДСТВО',
+    'Executive Producer': 'Исполнительный Продюсер',
+    'Producer': 'Продюсер',
+    'Development Producer': 'Продюсер Разработки',
+    'PROGRAMMING': 'ПРОГРАММИРОВАНИЕ',
+    'Lead Programmer': 'Ведущий Программист',
+    'Programmers': 'Программисты',
+    'ART': 'ГРАФИКА',
+    'Lead Artist': 'Ведущий Художник',
+    'Artists': 'Художники',
+    'DESIGN': 'ДИЗАЙН',
+    'Lead Designer': 'Ведущий Дизайнер',
+    'Designer': 'Дизайнер',
+    'Lead Scripter': 'Ведущий Скриптер',
+    'Level Designers & Scripters': 'Дизайнеры Уровней и Скриптеры',
+    'AUDIO': 'ЗВУК',
+    'Audio Director / Cinematics Mixer': 'Звукорежиссёр / Сведение Роликов',
+    'Sound Designers': 'Звуковые Дизайнеры',
+    'Dialogue Supervisor and Casting': 'Руководитель Озвучки и Кастинг',
+    'Dialogue Editing': 'Монтаж Диалогов',
+    'Additional Sound Design': 'Дополнительный Звуковой Дизайн',
+    'LOCALIZATION': 'ЛОКАЛИЗАЦИЯ',
+    'International Services Producer': 'Продюсер Международного Отдела',
+    'International Services/Localization Manager': 'Менеджер Международного Отдела/Локализации',
+    'Localization': 'Локализация',
+    'MARKETING & PUBLIC RELATIONS': 'МАРКЕТИНГ И СВЯЗИ С ОБЩЕСТВЕННОСТЬЮ',
+    'Brand Manager': 'Бренд-Менеджер',
+    'Traffic Manager': 'Менеджер по Трафику',
+    'QUALITY ASSURANCE': 'КОНТРОЛЬ КАЧЕСТВА',
+    'Manager of Quality Assurance': 'Руководитель Контроля Качества',
+    'Console Test Manager': 'Менеджер Тестирования на Консолях',
+    'QA Operations Manager': 'Операционный Менеджер QA',
+    'Technical Resource Specialists': 'Специалисты по Техническим Ресурсам',
+    'QA Product Manager': 'Продакт-Менеджер QA',
+    'QA Associate Product Manager': 'Младший Продакт-Менеджер QA',
+    'QA Analysts': 'Аналитики QA',
+    'VIDEO': 'ВИДЕО',
+    'Video Manager': 'Руководитель Видео',
+    'Video Editor': 'Видеомонтажёр',
+    'V.P. of Development': 'Вице-Президент по Разработке',
+    'Director of Technology': 'Технический Директор',
+    'VO TALENT': 'АКТЁРЫ ОЗВУЧКИ',
+    'MUSIC CREDITS': 'МУЗЫКА',
+    'Additional Music': 'Дополнительная Музыка',
+    'Main Title Composed': 'Музыка Главной Темы',
+    'Ambient and Battle Music Composed': 'Фоновая и Боевая Музыка',
+    'Additional Ambient Music Composed': 'Дополнительная Фоновая Музыка',
+    'SPECIAL THANKS': 'ОСОБАЯ БЛАГОДАРНОСТЬ',
+    'All the Interplay Widows (again)': 'Всем Соломенным Вдовам Interplay (снова)',
+    'Interplay Facilities (you guys rock!)': 'Хозслужбе Interplay (вы лучшие!)',
+    'Scotch whisky and home made scones': 'Шотландскому виски и домашним лепёшкам',
+    'Interplay IT Department': 'ИТ-Отдел Interplay',
+    'Thanks for the laughs': 'Спасибо, что смешили',
+}
+_credits_cache = {}
+
+
+def _cstr(d, va):
+    o = xbe_offset(d, va)
+    return d[o:d.index(b'\0', o)].decode('latin-1')
+
+
+def credits_layout(rows, text):
+    """The Russian table: each translated row followed by its Russian (a
+    pointer into the pool), then as many blank rows dropped as rows were
+    added: second blanks of a pair first, then blanks before a sub-heading
+    or a name, last the blanks before a section (an all-capitals heading) or
+    a song ("Title")."""
+    blob, at, out = b'', {}, []
+    for style, ptr in rows:
+        out.append((style, ptr))
+        ru = CREDITS_RU.get(text.get(ptr))
+        if ru is not None:
+            if ru not in at:
+                at[ru] = CREDITS_POOL + len(blob)
+                blob += to_game(ru).encode('latin-1') + b'\0'
+            out.append((style, at[ru]))
+    if len(blob) > CREDITS_POOL_END - CREDITS_POOL:
+        raise ValueError('the Russian credits do not fit their pool')
+
+    def blank(i):
+        s = text.get(out[i][1])
+        return out[i][1] and s is not None and not s.strip()
+
+    def rank(i):
+        if i and blank(i - 1):
+            return 0
+        nxt = next((text.get(p, '') for _, p in out[i + 1:] if not (p and not text.get(p, 'x').strip())), '')
+        return 2 if nxt.isupper() or nxt.startswith('"') else 1
+    while len(out) > len(rows):
+        cand = [i for i in range(len(out)) if blank(i)]
+        if not cand:
+            raise ValueError('no blank credits rows left for the Russian ones')
+        best = min(cand, key=lambda i: (rank(i), i))
+        del out[best]
+    table = b''.join(struct.pack('<II', s, p) for s, p in out)
+    return table, blob + bytes(CREDITS_POOL_END - CREDITS_POOL - len(blob))
+
+
+def credits_sites(xbe):
+    """[(va, English bytes, Russian bytes)] for the credits table and its
+    pool. With the Russian credits in place, the English come from
+    default.xbe.en (apply writes it)."""
+    if xbe in _credits_cache:
+        return _credits_cache[xbe]
+    d = read_file(xbe)
+    o = xbe_offset(d, CREDITS_VA)
+    n = CREDITS_ROWS * 8
+    rows = [struct.unpack_from('<II', d, o + i * 8) for i in range(CREDITS_ROWS)]
+    if any(CREDITS_POOL <= p < CREDITS_POOL_END for _, p in rows):
+        if not os.path.exists(xbe + '.en'):
+            raise ValueError(f'{xbe} has the Russian credits but no {os.path.basename(xbe)}.en '
+                             'to take the English ones from; unpack default.xbe from the disc again')
+        d = read_file(xbe + '.en')
+        rows = [struct.unpack_from('<II', d, o + i * 8) for i in range(CREDITS_ROWS)]
+    if _cstr(d, rows[-2][1]) != 'END' or rows[-1] != (0, 0):
+        raise ValueError(f'{xbe}: the credits table is not where it should be')
+    text = {p: _cstr(d, p) for _, p in rows if p}
+    table, pool = credits_layout(rows, text)
+    po = xbe_offset(d, CREDITS_POOL)
+    sites = [(CREDITS_VA, bytes(d[o:o + n]), table),
+             (CREDITS_POOL, bytes(d[po:po + len(pool)]), pool)]
+    _credits_cache[xbe] = sites
+    return sites
+
+
+def xbe_string_sites(xbe):
+    return xbe_text_sites() + credits_sites(xbe)
+
+
 def xbe_offset(d, va):
     base = struct.unpack_from('<I', d, 0x104)[0]
     n, at = struct.unpack_from('<II', d, 0x11C)
@@ -651,7 +799,7 @@ def xbe_patch(xbe, to_new, dry=False):
     -1 if not this image"""
     d = bytearray(read_file(xbe))
     code = text = False
-    sites = [(s, True) for s in XBE_SITES] + [(s, False) for s in xbe_text_sites()]
+    sites = [(s, True) for s in XBE_SITES] + [(s, False) for s in xbe_string_sites(xbe)]
     for (va, orig, new), is_code in sites:
         o = xbe_offset(d, va)
         here = bytes(d[o:o + len(orig)]) if o is not None else b''
@@ -674,7 +822,8 @@ def xbe_patch(xbe, to_new, dry=False):
         write_file(xbe, d)
     state = 'patched' if to_new else 'original'
     if text:
-        print(f'  default.xbe: {len(XBE_TEXT)} strings: inventory, loading screen ({state})')
+        print(f'  default.xbe: {len(XBE_TEXT)} strings (inventory, loading screen, level-up, disc error) '
+              f'and the credits ({state})')
     if code:
         print(f'  default.xbe: wide sprintf copies whole characters ({state}); '
               'regenerate and build (./regen.sh, cmake --build)')
@@ -683,14 +832,15 @@ def xbe_patch(xbe, to_new, dry=False):
 
 def xbe_variants(xbe):
     """default.xbe.en and .ru: the same code (all XBE_SITES applied), the
-    XBE_TEXT strings in English or Russian. They differ only in those
-    strings in .rdata, which the runtime maps at start-up; the launcher sets
+    XBE_TEXT strings and the credits in English or Russian. They differ only
+    in those bytes (.rdata, .data, $$XTIMAGE), which the runtime maps at
+    start-up; the launcher sets
     just the differing bytes in default.xbe by its Language choice, so a
     later widescreen.py apply/revert there stays, and nothing needs
     regenerating."""
     d = bytearray(read_file(xbe))
     for lang in ('en', 'ru'):
-        for va, orig, new in xbe_text_sites():
+        for va, orig, new in xbe_string_sites(xbe):
             o = xbe_offset(d, va)
             d[o:o + len(orig)] = new if lang == 'ru' else orig
         out = xbe + '.' + lang
@@ -758,7 +908,8 @@ def run(argv):
         sdb = [n for n in SDBS if same(os.path.join(resx, n), os.path.join(resx, n + '.ru'))]
         fnt = os.path.exists(os.path.join(resx, 'sfx.clp.en'))
         d = open(xbe, 'rb').read()
-        for va, orig, new in XBE_SITES + xbe_text_sites():
+        strings = xbe_string_sites(xbe)
+        for va, orig, new in XBE_SITES + strings:
             o = xbe_offset(d, va)
             if o is None or d[o:o + len(orig)] not in (orig, new, xbe_text_earlier(va, len(orig))):
                 print(f'russian: {xbe} at {va:#010x} is neither the original nor the patch; '
@@ -770,7 +921,7 @@ def run(argv):
         print(f'russian: text {"in Russian: " + ", ".join(sdb) if sdb else "English"}; '
               f'fonts {"with Cyrillic" if fnt else "original"}; '
               f'default.xbe code fixes {patched(XBE_SITES)}/{len(XBE_SITES)}, '
-              f'XBE strings {"Russian" if patched(xbe_text_sites()) else "English"}')
+              f'XBE strings and credits in Russian {patched(strings)}/{len(strings)}')
         return 0
     if cmd == 'apply':
         # Everything that can refuse does so before the first write: the

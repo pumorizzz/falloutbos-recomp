@@ -224,8 +224,9 @@ static int exe_code_fixes(void)
     return got;
 }
 
-/* The inventory's labels and the loading screen's "Loading..." are 8-bit
- * strings in the XBE's .rdata. default.xbe.en and .ru (tools/russian.py,
+/* The inventory's labels, the loading screen's "Loading..." and the other
+ * 8-bit strings are in the XBE's .rdata, the credits table in .data and its
+ * Russian lines in $$XTIMAGE. default.xbe.en and .ru (tools/russian.py,
  * xbe_variants) differ only in those bytes, so exactly those bytes of
  * default.xbe are set from the chosen one. The rest of the file -- the code
  * the C was generated from, 16:9 or 4:3 (widescreen.py) -- stays as it is:

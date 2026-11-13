@@ -87,8 +87,14 @@ Switching back and forth needs no rebuild.
   display names in `global.sdb` / `deftexte.sdb` (items, armour, weapons,
   characters) and in each level's own `resx\c*\<LEVEL>\<LEVEL>.sdb` (enemies,
   people, objects), and the strings inside the XBE: the inventory's labels
-  (`Experience:`, `Cost: %d`, `No Items`...) and the loading screen's
-  `Loading...`. The translation is kept in `tools/ru/`.
+  (`Experience:`, `Cost: %d`, `No Items`...), the loading screen's
+  `Loading...`, the level-up prompt and the disc error. The translation is kept
+  in `tools/ru/`.
+- **Credits:** each heading and role (and the thanks) gets a Russian line under
+  the English one, like subtitles; names, songs and labels stay as they are. The
+  credits table in the XBE cannot grow, so the Russian lines take the place of
+  some blank spacer lines, and their text goes into the XBE's dashboard title
+  image (`$$XTIMAGE`), which the game only copies into its save folder.
 - **Encoding:** several of the game's paths are 8-bit (item names in
   "Pick up %s", the XBE's own strings, save names), so the text goes in as cp1251
   code points rather than U+04xx, and the fonts draw those codes with Cyrillic.
@@ -109,8 +115,9 @@ Switching back and forth needs no rebuild.
   `.sdb` set into place and sets only those strings in `default.xbe`, so the
   code in it (16:9 or 4:3) stays as it is.
 - **Stays English:** level names (save names), the folder name of each level
-  (`TUTORIAL` is a path), text drawn into textures (the compass letters) and movies
-  (the T. S. Eliot quote in the intro), and the credits.
+  (`TUTORIAL` is a path), the compass letters (N/S/E/W), text drawn into textures
+  and movies (the T. S. Eliot quote in the intro), and the credits' names, songs
+  and music rights.
 
 `py -3 tools/russian.py status` reports what is installed, and `revert` restores
 the original files. Formats and internals are documented in the script's header.
