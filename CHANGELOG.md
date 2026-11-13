@@ -128,6 +128,11 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
   inside lines kept, a few prompts in the original's capitals, and the level
   name "Vault Lab 1, mutated" back in English (level names go into save
   names through an 8-bit path).
+- The Russian text checked against a second walkthrough, with Nadia as the
+  hero, for the lines the first one did not show: 14 lines fixed. The raider
+  Matron, Ruby, the Shop-Tek and the hero's own replies no longer speak to a
+  man only, Nadia's perk is "Женщина Будущего" (Future Woman), and two lines
+  have their meaning and swearing back.
 - The launcher set the Russian XBE strings into a `default.xbe` without
   `russian.py`'s code fixes (the disc unpacked again, the `.en`/`.ru` set left),
   and the inventory's labels came out cut to "..."; it now refuses and asks for
