@@ -25,7 +25,9 @@ level's own .sdb (resx/c*/<LEVEL>/<LEVEL>.sdb: object and enemy names) gets
 the names from tools/ru/global_names.py, sixteen strings inside the XBE
 (the inventory's labels, the loading screen's "Loading...", the level-up
 prompt, the disc error) are rewritten in place (XBE_TEXT), and the credits
-get a Russian line under each heading (CREDITS_RU).
+get a Russian line under each heading (CREDITS_RU). The movie subtitles
+(tools/ru/movies.tsv) go into gtext.sdb as new keys "SUB_<movie>"; the port
+draws them over the Bink movies (src/game/recomp/recomp_manual.c).
 
 Translations: tools/ru/<name>.tsv and tools/ru/<name>/*.tsv, lines
 "hash<TAB>text" (hash as in the export, \\n for a line break). A string with
@@ -153,6 +155,65 @@ def sdb_write(ents, slots, pad):
     if pad:
         d += b'\0' * (-len(d) % pad)
     return d
+
+
+def sdb_probe(h):
+    """The slots 0x5AA00 tries for hash h, in order: h, then
+    h = (h << 5) ^ (~h >> 27), up to 60 times (then it stays)."""
+    for _ in range(61):
+        yield h
+        h = ((h << 5) ^ ((~h & 0xFFFFFFFF) >> 27)) & 0xFFFFFFFF
+
+
+def sdb_insert(ents, slots, extra):
+    """ents with extra [(hash, text)] added where 0x5AA00 will look for
+    them: the first free slot on each hash's probe. If the count needs a
+    bigger table (table_slots), every entry is placed again. (ents, slots)"""
+    if not extra:
+        return ents, slots
+    known = {h for _, h, _ in ents}
+    for h, _ in extra:
+        if h in known:
+            raise ValueError(f'key hash {h:08x} is already in the table')
+    n = table_slots(len(ents) + len(extra))
+    used, out = set(), []
+    keep = n == slots
+    for i, h, s in ents:
+        if not keep:
+            i = next(j & (n - 1) for j in sdb_probe(h) if (j & (n - 1)) not in used)
+        used.add(i)
+        out.append((i, h, s))
+    for h, s in extra:
+        i = next((j & (n - 1) for j in sdb_probe(h) if (j & (n - 1)) not in used), None)
+        if i is None:
+            raise ValueError(f'no free slot for key hash {h:08x}')
+        used.add(i)
+        out.append((i, h, s))
+    return out, n
+
+
+MOVIES = os.path.join(RU, 'movies.tsv')
+
+
+def movie_subtitles():
+    """[(hash of "SUB_<movie>", cues)] from tools/ru/movies.tsv, for gtext.sdb.
+    One string per movie, a cue a line: "<start> <end> <text>", seconds with
+    two decimals, a line break inside the text written as '^' (the port,
+    fbos_subtitles in recomp_manual.c, reads them back)."""
+    if not os.path.exists(MOVIES):
+        return []
+    cues = {}
+    with open(MOVIES, encoding='utf-8') as f:
+        for n, line in enumerate(f, 1):
+            line = line.rstrip('\r\n')
+            if not line or line.startswith('#'):
+                continue
+            movie, a, b, text = line.split('\t')
+            if float(b) <= float(a) or '^' in text:
+                raise ValueError(f'{MOVIES}:{n}: bad cue')
+            cues.setdefault(movie.lower(), []).append(
+                '%.2f %.2f %s' % (float(a), float(b), to_game(text.replace('\\n', '^'))))
+    return [(name_hash('SUB_' + m), '\n'.join(c)) for m, c in cues.items()]
 
 
 def tsv_read(path):
@@ -397,7 +458,7 @@ def names():
     return mod.NAMES
 
 
-def sdb_one(path, tr, by_text=False):
+def sdb_one(path, tr, by_text=False, extra=None):
     """Rebuild <path> from <path>.en with tr (hash -> Russian, or English text
     -> Russian when by_text), written in cp1251 code points. Keeps the
     Russian set as <path>.ru too: the launcher copies the .en or the .ru set
@@ -420,6 +481,7 @@ def sdb_one(path, tr, by_text=False):
     key = (lambda h, s: s) if by_text else (lambda h, s: h)
     done = sum(1 for _, h, s in ents if key(h, s) in tr)
     ents = [(i, h, to_game(tr[key(h, s)]) if key(h, s) in tr else s) for i, h, s in ents]
+    ents, slots = sdb_insert(ents, slots, extra)       # new keys: the movie subtitles
     out = sdb_write(ents, slots, 2048 if len(d) % 2048 == 0 else 0)
     changed = read_file(path) != out
     if changed:
@@ -441,9 +503,11 @@ def sdb_apply(resx):
         tr = {}
         for t in tsvs:
             tr.update(tsv_read(t))
-        c, done, total = sdb_one(os.path.join(resx, name), tr)
+        extra = movie_subtitles() if name == 'gtext.sdb' else None
+        c, done, total = sdb_one(os.path.join(resx, name), tr, extra=extra)
         changed += c
-        print(f'  {name}: {done} of {total} strings in Russian')
+        print(f'  {name}: {done} of {total} strings in Russian'
+              + (f', subtitles for {len(extra)} movies' if extra else ''))
     nm = names()
     done = total = 0
     levels = level_sdbs(resx)

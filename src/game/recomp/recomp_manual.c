@@ -21,6 +21,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stddef.h>   /* ptrdiff_t */
+#include <string.h>
 
 #include "recomp_types.h"
 
@@ -129,6 +130,211 @@ static void fbos_skip_dvd_security_sector(void)
         fflush(stderr);
     }
 }
+
+/* ---------------------------------------------------------------------------
+ * Movie subtitles (Russian), drawn over a Bink movie in the game's own font.
+ *
+ * The movie player keeps the playing file's path at 0x29A1C0 and its Bink
+ * handle at [0x29A234] (+0x0C current frame, 1-based; +0x14/+0x18 frame rate
+ * and divisor). Each frame the main loop (0x90170) draws the movie (0x78F10),
+ * then calls sub_0003A250, then 0x8F330, which draws the queued 8-bit text
+ * over everything and presents. So the subtitle is queued in sub_0003A250,
+ * the way the credits queue theirs (0x43710): 0x712C0 opens a block in a
+ * font and colour, 0x71A70 queues a line centred on x (the queue copies the
+ * string), 0x71380 closes it.
+ *
+ * The cues come from the game's own text: gtext.sdb of the Russian set has
+ * one string per movie under the key "SUB_<movie>" (tools/russian.py, from
+ * tools/ru/movies.tsv), looked up through 0x5AA00 like any other key. A line
+ * a cue, "<start> <end> <text>" in seconds, '^' a line break, the text in the
+ * cp1251 code points the fonts draw. The English set has no such key: English
+ * plays without subtitles, and the launcher's language switch needs nothing.
+ * ------------------------------------------------------------------------- */
+extern void sub_0005AA00(void);
+extern void sub_000712C0(void);
+extern void sub_00071310(void);
+extern void sub_00071380(void);
+extern void sub_00071A70(void);
+extern void sub_00019820(void);
+
+#define SUB_MAX_CUES 48
+#define SUB_TEXT     192
+
+static struct {
+    char movie[96];                     /* path the cues below are for */
+    int  count;                         /* -1 lookup not done, 0 none */
+    struct { float a, b; char text[SUB_TEXT]; } cue[SUB_MAX_CUES];
+} s_sub = { "", -1 };
+
+/* The game's key hash (0x1E1F0, the same for .clp names). */
+static uint32_t sub_hash(const char *s)
+{
+    uint32_t h = 0;
+    for (; *s; s++) {
+        int c = (signed char)(*s == '\\' ? '/' : *s);
+        h = ((h * 0x80000025u) ^ (h >> 27)) ^ (uint32_t)c;
+    }
+    return h;
+}
+
+/* Call a game function: args pushed right to left, a dummy return address;
+ * cdecl unless the callee pops them itself (pops = 1). eax comes back. */
+static uint32_t sub_call(void (*fn)(void), const uint32_t *args, int n, int pops)
+{
+    uint32_t sp = g_esp, ebx = g_ebx, esi = g_esi, edi = g_edi, ebp = g_ebp;
+    int i;
+    for (i = n - 1; i >= 0; i--)
+        PUSH32(g_esp, args[i]);
+    PUSH32(g_esp, 0x0003A250u);
+    fn();
+    (void)pops;
+    g_esp = sp;                                  /* both conventions: back to before */
+    g_ebx = ebx; g_esi = esi; g_edi = edi; g_ebp = ebp;
+    return g_eax;
+}
+
+/* "intro" from "d:\resx\intro.bik", lower case. */
+static void sub_movie_key(const char *path, char *out, size_t size)
+{
+    const char *b = path, *p;
+    size_t n = 0;
+    for (p = path; *p; p++)
+        if (*p == '\\' || *p == '/' || *p == ':')
+            b = p + 1;
+    n = (size_t)snprintf(out, size, "SUB_");
+    for (p = b; *p && *p != '.' && n + 1 < size; p++)
+        out[n++] = (char)((*p >= 'A' && *p <= 'Z') ? *p - 'A' + 'a' : *p);
+    out[n] = 0;
+}
+
+static void sub_load(const char *path)
+{
+    char key[64];
+    uint32_t h, s, n = 0, i;
+    char line[SUB_TEXT + 32];
+
+    snprintf(s_sub.movie, sizeof s_sub.movie, "%s", path);
+    s_sub.count = 0;
+    sub_movie_key(path, key, sizeof key);
+    h = sub_hash(key);
+    s = sub_call(sub_0005AA00, &h, 1, 1);        /* wide string or 0 */
+    fprintf(stderr, "[SUB] movie %s: %s\n", key, s ? "subtitles" : "none");
+    if (!s)
+        return;
+    for (i = 0;; i += 2) {
+        uint16_t c = MEM16(s + i);
+        if (c == 0 || c == '\n') {
+            float a, b;
+            int off = 0;
+            line[n] = 0;
+            if (n && sscanf(line, "%f %f %n", &a, &b, &off) == 2 && off
+                && s_sub.count < SUB_MAX_CUES) {
+                s_sub.cue[s_sub.count].a = a;
+                s_sub.cue[s_sub.count].b = b;
+                snprintf(s_sub.cue[s_sub.count].text, SUB_TEXT, "%s", line + off);
+                s_sub.count++;
+            }
+            n = 0;
+            if (c == 0)
+                break;
+        } else if (n + 1 < sizeof line) {
+            line[n++] = (char)(c & 0xFF);        /* cp1251 code points: one byte each */
+        }
+    }
+}
+
+static void fbos_subtitles(void)
+{
+    uint32_t bink = MEM32(0x0029A234u), frame, rate, div, i;
+    const char *path = (const char *)XBOX_PTR(0x0029A1C0u);
+    float t;
+
+    if (!bink || !path[0])
+        return;
+    if (s_sub.count < 0 || strcmp(s_sub.movie, path) != 0)
+        sub_load(path);
+    if (s_sub.count <= 0)
+        return;
+    frame = MEM32(bink + 0x0C);
+    rate = MEM32(bink + 0x14);
+    div = MEM32(bink + 0x18);
+    if (!rate || !div || !frame)
+        return;
+    t = (float)(frame - 1) * (float)div / (float)rate;
+    for (i = 0; i < (uint32_t)s_sub.count; i++)
+        if (t >= s_sub.cue[i].a && t < s_sub.cue[i].b)
+            break;
+    if (i == (uint32_t)s_sub.count)
+        return;
+    {
+        /* Lines bottom-up from y 416, 20 apart (gamefonta, 18 px): lower,
+         * the 16:9 picture's bottom bar covered the last line. */
+        const char *txt = s_sub.cue[i].text;
+        const char *line[4];
+        int nl = 0, k;
+        uint32_t eax = g_eax, ecx = g_ecx, edx = g_edx;
+        uint32_t args[4];
+
+        line[nl++] = txt;
+        for (; *txt && nl < 4; txt++)
+            if (*txt == '^')
+                line[nl++] = txt + 1;
+        args[0] = MEM32(0x001CC5FCu);            /* gamefonta */
+        args[1] = 7; args[2] = 1; args[3] = 0xFFFFFFFFu;
+        sub_call(sub_000712C0, args, 4, 0);
+        args[0] = 0xFFFFFFFFu;                   /* opaque white */
+        sub_call(sub_00071310, args, 1, 0);
+        for (k = 0; k < nl; k++) {
+            const char *e = strchr(line[k], '^');
+            size_t len = e ? (size_t)(e - line[k]) : strlen(line[k]);
+            uint32_t buf, j;
+            /* The string on the guest stack: the queue copies it. */
+            g_esp -= 256;
+            buf = g_esp;
+            for (j = 0; j < len && j < 255; j++)
+                MEM8(buf + j) = (uint8_t)line[k][j];
+            MEM8(buf + j) = 0;
+            args[0] = 320;
+            args[1] = (uint32_t)(416 - (nl - 1 - k) * 20);
+            args[2] = buf;
+            sub_call(sub_00071A70, args, 3, 0);
+            g_esp += 256;
+        }
+        sub_call(sub_00071380, args, 0, 0);
+        g_eax = eax; g_ecx = ecx; g_edx = edx;
+    }
+}
+
+/* sub_0003A250, as the original (each object on the list at [0x10E1EC] gets
+ * vtable[0](1), then a tail jump to 0x19820 with ecx = 0x10E1EC), with the
+ * movie subtitle queued first. Called once a frame from the main loop. */
+#define eax g_eax
+void sub_0003A250(void)
+{
+    uint32_t node;
+
+    fbos_subtitles();
+    PUSH32(g_esp, g_esi);
+    for (node = MEM32(0x0010E1ECu); node; node = MEM32(node + 4)) {
+        uint32_t obj = MEM32(node);
+        if (!obj)
+            continue;
+        g_esi = node;
+        g_ecx = obj;
+        g_eax = MEM32(obj);
+        {
+            uint32_t _icall_esp = g_esp;
+            PUSH32(g_esp, 1);
+            PUSH32(g_esp, 0x0003A26Cu);
+            RECOMP_ICALL_SAFE_AT(MEM32(g_eax), _icall_esp, 0x0003A26Au);
+        }
+        node = g_esi;
+    }
+    g_ecx = 0x0010E1ECu;
+    POP32(g_esp, g_esi);
+    sub_00019820();                               /* tail jmp 0x19820 */
+}
+#undef eax
 
 /* ── Manual function overrides ─────────────────────────────── */
 

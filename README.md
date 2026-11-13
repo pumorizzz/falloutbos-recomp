@@ -90,6 +90,13 @@ Switching back and forth needs no rebuild.
   (`Experience:`, `Cost: %d`, `No Items`...), the loading screen's
   `Loading...`, the level-up prompt and the disc error. The translation is kept
   in `tools/ru/`.
+- **Movie subtitles:** the narration of the intro, the chapter movies, the
+  trailer and the countdown, and the English on screen in them (the Eliot
+  quotes, the chapter titles), are subtitled in Russian, white at the bottom in
+  the game's own font; songs are not. The cues are in `tools/ru/movies.tsv`
+  (transcribed with Whisper), `apply` puts them into `gtext.sdb` of the Russian
+  set, and the port draws them over the playing movie, so English plays
+  without them.
 - **Credits:** each heading and role (and the thanks) gets a Russian line under
   the English one, like subtitles; names, songs and labels stay as they are. The
   credits table in the XBE cannot grow, so the Russian lines take the place of
@@ -115,9 +122,9 @@ Switching back and forth needs no rebuild.
   `.sdb` set into place and sets only those strings in `default.xbe`, so the
   code in it (16:9 or 4:3) stays as it is.
 - **Stays English:** level names (save names), the folder name of each level
-  (`TUTORIAL` is a path), the compass letters (N/S/E/W), text drawn into textures
-  and movies (the T. S. Eliot quote in the intro), and the credits' names, songs
-  and music rights.
+  (`TUTORIAL` is a path), the compass letters (N/S/E/W), the drive name on the
+  save screen, text drawn into textures, the songs in the movies, and the
+  credits' names, songs and music rights.
 
 `py -3 tools/russian.py status` reports what is installed, and `revert` restores
 the original files. Formats and internals are documented in the script's header.

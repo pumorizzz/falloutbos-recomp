@@ -35,6 +35,14 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
   kept only the low byte of a format's own characters ("Выбрать" read
   "K1@0BL"), and the 8-bit-to-wide copies widened with a sign ("Pick up %s" was
   cut to "...").
+- Russian movie subtitles, as in a film: the narration of the intro, the three
+  chapter movies, the trailer and the countdown, and the on-screen English in
+  them (the T. S. Eliot quotes, the chapter titles, the GNN card), white at the
+  bottom in the game's own font. Cues in `tools/ru/movies.tsv` (speech
+  transcribed with Whisper medium.en), put into `gtext.sdb` of the Russian set
+  as `SUB_<movie>` keys; the port queues the current cue each movie frame in a
+  replaced `sub_0003A250` (`recomp_manual.c`). English has no such keys and no
+  subtitles. Songs are not subtitled.
 - Russian credits: each heading and role, and the thanks, get a Russian line
   under the English one, like subtitles (in place of blank spacer lines; the
   Russian text in the dashboard title image `$$XTIMAGE`). The level-up prompt
