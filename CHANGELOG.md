@@ -49,6 +49,11 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
   size, full screen, MSAA and the frame-rate limit (30, 60 or 120), then the game; remembered in `bin\launcher.ini`.
 
 ### Fixed (GPU rendering and play)
+- The credits lost their lower lines (English too): the game draws a frame's
+  8-bit text in one batch of quads, and the pushbuffer executor kept 1024
+  immediate vertices, 256 glyphs, and dropped the rest. A list of primitives
+  now draws what it has and goes on (toolkit, `nv2a_pb_exec.c`); the credits
+  fill the screen as on the Xbox, on the GPU and the CPU path.
 - Hitches of 60-80 ms on the GPU path when new textures came into view (the
   first streets of Carbon): textures decode ~18x faster and DXT goes to the
   GPU as BC; the same frames now stay at 16-19 ms.
