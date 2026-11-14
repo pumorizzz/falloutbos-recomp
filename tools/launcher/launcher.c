@@ -24,13 +24,15 @@ typedef struct {
 } Choice;
 
 /* The game's frame is 640x480; the GPU draws it a whole number of times larger
- * (RECOMP_GPU_RASTER_SCALE; the variable still takes <x>x<y>, the list keeps
- * them square). */
+ * (RECOMP_GPU_RASTER_SCALE). The list keeps them square, but for an XBE
+ * patched to 16:9 (tools/widescreen.py) the frame is anamorphic and 4x3 is a
+ * 2560x1440 picture pixel for pixel -- the last entry, shown only then. */
 static const Choice k_render[] = {
     { "1x - 640 x 480 (the game's own)", "1" },
     { "2x - 1280 x 960", "2" },
     { "3x - 1920 x 1440", "3" },
     { "4x - 2560 x 1920", "4" },
+    { "4x3 - 2560 x 1440 (16:9 pixel for pixel)", "4x3" },
 };
 static const Choice k_output[] = {
     { "1280 x 720", "1280x720" },
@@ -74,6 +76,7 @@ enum { ID_RENDER = 100, ID_OUTPUT, ID_AA, ID_FPS, ID_FULL, ID_LANG, ID_PLAY, ID_
 static char s_root[MAX_PATH];           /* the repository: bin\.. */
 static char s_ini[MAX_PATH];
 static HWND s_render, s_output, s_aa, s_fps, s_full, s_lang, s_ssaa, s_hint;
+static int s_render_n;                  /* entries of k_render shown: 4x3 only for 16:9 */
 static HFONT s_font;
 
 static int find_value(const Choice *c, int n, const char *v, int fallback)
@@ -111,30 +114,42 @@ static int selected(HWND h)
     return i < 0 ? 0 : i;
 }
 
+/* The chosen render scale each way: "<n>" or "<x>x<y>". */
+static void render_scale(int *sx, int *sy)
+{
+    const char *v = k_render[selected(s_render)].value;
+    if (sscanf(v, "%dx%d", sx, sy) != 2)
+        *sy = *sx = atoi(v);
+}
+
 /* Scale x SSAA is at most MAX_SIDE a side: a larger SSAA drops to what fits. */
 static void clamp_ssaa(void)
 {
-    int s = atoi(k_render[selected(s_render)].value), i = selected(s_ssaa);
-    while (i > 0 && s * atoi(k_ssaa[i].value) > MAX_SIDE)
+    int sx, sy, i = selected(s_ssaa);
+    render_scale(&sx, &sy);
+    if (sy > sx)
+        sx = sy;
+    while (i > 0 && sx * atoi(k_ssaa[i].value) > MAX_SIDE)
         i--;
     SendMessageA(s_ssaa, CB_SETCURSEL, (WPARAM)i, 0);
 }
 
 static void update_hint(void)
 {
-    int s = atoi(k_render[selected(s_render)].value);
+    int sx, sy;
     int n = atoi(k_ssaa[selected(s_ssaa)].value);
     char t[200];
 
+    render_scale(&sx, &sy);
     if (n > 1)
         snprintf(t, sizeof t, "Drawn at %d x %d, averaged to %d x %d.\n"
                               "SSAA and MSAA cost GPU time and video memory.",
-                 640 * s * n, 480 * s * n, 640 * s, 480 * s);
+                 640 * sx * n, 480 * sy * n, 640 * sx, 480 * sy);
     else
         snprintf(t, sizeof t, "The GPU draws %d x %d.\n"
                               "SSAA and MSAA cost GPU time and video memory;\n"
                               "3x with MSAA 4x holds 60 fps on a fast card.",
-                 640 * s, 480 * s);
+                 640 * sx, 480 * sy);
     SetWindowTextA(s_hint, t);
 }
 
@@ -231,6 +246,29 @@ static long xbe_offset(const unsigned char *d, DWORD n, DWORD va)
             return raw + (va - sva) <= n ? (long)(raw + (va - sva)) : -1;
     }
     return -1;
+}
+
+/* Is game\default.xbe patched to 16:9 (tools/widescreen.py)? The camera's
+ * aspect at 0x00089455 is `push 1.7778` then, as src/game/main.c checks. */
+static int xbe_widescreen(void)
+{
+    char p[MAX_PATH];
+    DWORD n = 0;
+    unsigned char *d;
+    long o;
+    int wide = 0;
+
+    snprintf(p, sizeof p, "%s\\game\\default.xbe", s_root);
+    if ((d = read_all(p, &n)) == NULL)
+        return 0;
+    o = xbe_offset(d, n, 0x00089455u);
+    if (o >= 0 && (DWORD)o + 4 <= n) {
+        DWORD v;
+        memcpy(&v, d + o, 4);
+        wide = v == 0x3FE38E39u;
+    }
+    free(d);
+    return wide;
 }
 
 /* "FBOS-RU-CODE-FIXES n/10" in bin\fobos.exe (tools/russian.py code-mark): n,
@@ -498,11 +536,12 @@ static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
         int y = 16;
         make("STATIC", "Render resolution:", 0, 16, y, 300, 18, h, 0);
         GetPrivateProfileStringA("launcher", "render", "3", v, sizeof v, s_ini);
-        /* 4x3 left the list: the nearest square scale. */
-        if (strcmp(v, "4x3") == 0)
+        s_render_n = xbe_widescreen() ? COUNT(k_render) : COUNT(k_render) - 1;
+        /* 4x3 without 16:9: the nearest square scale. */
+        if (strcmp(v, "4x3") == 0 && s_render_n < COUNT(k_render))
             strcpy(v, "4");
-        s_render = combo(h, ID_RENDER, 16, y + 20, k_render, COUNT(k_render),
-                         find_value(k_render, COUNT(k_render), v, 2));
+        s_render = combo(h, ID_RENDER, 16, y + 20, k_render, s_render_n,
+                         find_value(k_render, s_render_n, v, 2));
         y += 56;
         make("STATIC", "Output (the picture's size):", 0, 16, y, 300, 18, h, 0);
         GetPrivateProfileStringA("launcher", "output", "2560x1440", v, sizeof v, s_ini);

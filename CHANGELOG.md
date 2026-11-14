@@ -27,8 +27,9 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
   multisampling, read back to guest RAM averaged; `Play.cmd` uses 3x3 + 4x.
 - SSAA on the GPU path (`RECOMP_GPU_RASTER_SSAA`, toolkit): drawn at scale x n,
   each n x n block averaged down to the chosen scale before it is shown.
-  Launcher: render resolution 1x-4x (640x480 to 2560x1920; 4x3 left the list,
-  the variable still takes it, an old `render=4x3` opens as 4x), SSAA
+  Launcher: render resolution 1x-4x (640x480 to 2560x1920), plus 4x3
+  (2560x1440, pixel for pixel at 16:9) only when `game\default.xbe` is
+  patched to 16:9 (an old `render=4x3` opens as 4x otherwise), SSAA
   (off/2x/3x/4x) and MSAA as separate choices, kept as `ssaa` in
   `bin\launcher.ini`.
 - Russian: `tools/russian.py apply` translates `gtext.sdb` (dialogue, quests,
