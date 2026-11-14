@@ -181,6 +181,12 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
   walkthroughs): 33 lines to or from the hero no longer say "he" only (Jessie,
   the raider Matron, Giese, the Mutant General and others, and the hero's own
   "I'm outta here" replies), and one agreement error is fixed.
+- The Russian text checked against a third walkthrough, with Cain as the
+  hero, for the lines the first two did not show and the ghoul lines none
+  showed: 8 lines fixed (the Mutant Blob speaks to one hero and not to a man
+  only, Armpit's last joke, the Necropolis pun and the hero's swearing at Rhombus back,
+  the "Use Stimpak" tutorial title, a grammar slip), and the 15 quest
+  "ПОДСКАЗКА:" hints start with a capital as the original's "HINT:" does.
 - The launcher set the Russian XBE strings into a `default.xbe` without
   `russian.py`'s code fixes (the disc unpacked again, the `.en`/`.ru` set left),
   and the inventory's labels came out cut to "..."; it now refuses and asks for
