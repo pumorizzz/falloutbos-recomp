@@ -26,13 +26,15 @@ typedef struct {
 /* The game's frame is 640x480; the GPU draws it a whole number of times larger
  * (RECOMP_GPU_RASTER_SCALE). The list keeps them square, but for an XBE
  * patched to 16:9 (tools/widescreen.py) the frame is anamorphic and 4x3 is a
- * 2560x1440 picture pixel for pixel -- the last entry, shown only then. */
+ * 2560x1440 picture pixel for pixel -- the last entry, shown only then.
+ * No whole scale is 1080 high (2.25 x 480): on a 1080p screen 3x is shrunk
+ * by 0.75 in height, 4x3 by 0.75 both ways, so the labels say which suits. */
 static const Choice k_render[] = {
     { "1x - 640 x 480 (the game's own)", "1" },
     { "2x - 1280 x 960", "2" },
-    { "3x - 1920 x 1440", "3" },
+    { "3x - 1920 x 1440 (best for 1080p)", "3" },
     { "4x - 2560 x 1920", "4" },
-    { "4x3 - 2560 x 1440 (16:9 pixel for pixel)", "4x3" },
+    { "4x3 - 2560 x 1440 (16:9, 1:1 at 1440p)", "4x3" },
 };
 static const Choice k_output[] = {
     { "1280 x 720", "1280x720" },
