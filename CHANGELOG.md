@@ -106,6 +106,7 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
   size, full screen, MSAA and the frame-rate limit (30, 60 or 120), then the game; remembered in `bin\launcher.ini`.
 
 ### Fixed (GPU rendering and play)
+- The launcher at a display scale of 125 % and more: labels, the hint and long list entries were cut off, the full-screen box ran into Output. The layout now scales with the system DPI.
 - The credits lost their lower lines (English too): the game draws a frame's
   8-bit text in one batch of quads, and the pushbuffer executor kept 1024
   immediate vertices, 256 glyphs, and dropped the rest. A list of primitives

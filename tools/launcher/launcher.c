@@ -11,7 +11,8 @@
  * (the frame-rate cap), FBOS_ASPECT (16:9, 16:10 or 4:3, the picture the
  * game draws). The language copies a set of the game's text files
  * into place (set_language). The choice is
- * kept in bin\launcher.ini. Plain Win32, no resources: built with the game
+ * kept in bin\launcher.ini. Laid out in 96-DPI pixels and scaled to the
+ * system DPI (px). Plain Win32, no resources: built with the game
  * (tools/launcher/CMakeLists.txt) into bin\.
  */
 #include <windows.h>
@@ -108,6 +109,12 @@ static const Choice *s_outputs = k_output_16x9;
 static HWND s_ssaa_unlock;              /* SSAA stays Off and greyed until this is ticked */
 static HFONT s_font;
 
+/* The system DPI. SetProcessDPIAware stops Windows from stretching the
+ * window, and the message font comes at that DPI, so the layout -- written in
+ * 96-DPI pixels below -- scales itself (px). */
+static int s_dpi = 96;
+static int px(int v) { return MulDiv(v, s_dpi, 96); }
+
 static int find_value(const Choice *c, int n, const char *v, int fallback)
 {
     int i;
@@ -120,8 +127,8 @@ static int find_value(const Choice *c, int n, const char *v, int fallback)
 static HWND make(const char *cls, const char *text, DWORD style, int x, int y, int w,
                  int h, HWND parent, int id)
 {
-    HWND c = CreateWindowExA(0, cls, text, WS_CHILD | WS_VISIBLE | style, x, y, w, h,
-                             parent, (HMENU)(INT_PTR)id, GetModuleHandleA(NULL), NULL);
+    HWND c = CreateWindowExA(0, cls, text, WS_CHILD | WS_VISIBLE | style, px(x), px(y),
+                             px(w), px(h), parent, (HMENU)(INT_PTR)id, GetModuleHandleA(NULL), NULL);
     SendMessageA(c, WM_SETFONT, (WPARAM)s_font, TRUE);
     return c;
 }
@@ -672,7 +679,8 @@ static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
         /* A Unicode combo of its own, so "Русский" shows under any code page. */
         s_lang = CreateWindowExW(0, L"COMBOBOX", L"",
                                  WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | WS_TABSTOP,
-                                 16, y + 20, 300, 200, h, (HMENU)(INT_PTR)ID_LANG,
+                                 px(16), px(y + 20), px(300), px(200), h,
+                                 (HMENU)(INT_PTR)ID_LANG,
                                  GetModuleHandleA(NULL), NULL);
         SendMessageW(s_lang, WM_SETFONT, (WPARAM)s_font, TRUE);
         SendMessageW(s_lang, CB_ADDSTRING, 0, (LPARAM)L"English (original)");
@@ -735,6 +743,15 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 
     (void)prev; (void)cmdline;
     SetProcessDPIAware();
+    {
+        HDC dc = GetDC(NULL);
+        if (dc) {
+            s_dpi = GetDeviceCaps(dc, LOGPIXELSY);
+            ReleaseDC(NULL, dc);
+        }
+        if (s_dpi <= 0)
+            s_dpi = 96;
+    }
     /* The launcher sits in bin\; the game runs from the folder above it. */
     GetModuleFileNameA(NULL, s_root, sizeof s_root);
     if ((slash = strrchr(s_root, '\\')) != NULL)
@@ -757,6 +774,8 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
     wc.hbrBackground = GetSysColorBrush(COLOR_BTNFACE);
     wc.lpszClassName = "FbosLauncher";
     RegisterClassA(&wc);
+    r.right = px(r.right);
+    r.bottom = px(r.bottom);
     AdjustWindowRect(&r, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX, FALSE);
     h = CreateWindowExA(0, wc.lpszClassName, "Fallout: Brotherhood of Steel",
                         WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
