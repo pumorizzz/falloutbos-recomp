@@ -38,7 +38,6 @@ C, so no regen is needed. Exit status: 0 nothing to do, 3 the file changed,
 1 not this image.
 """
 import os
-import shutil
 import struct
 import sys
 
@@ -81,6 +80,18 @@ for va, orig, new, _ in SITES:
     assert len(orig) == len(new), hex(va)
 
 
+def write_file(path, data):
+    """Through <path>.tmp and a rename, as russian.py does (not imported:
+    aspect.py imports this module): a crash leaves the old file or the new
+    one, never half of either -- default.xbe or its .4x3 backup cut off."""
+    tmp = path + '.tmp'
+    with open(tmp, 'wb') as f:
+        f.write(data)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, path)
+
+
 def sections(d):
     base = struct.unpack_from('<I', d, 0x104)[0]
     n, at = struct.unpack_from('<II', d, 0x11C)
@@ -116,6 +127,9 @@ def main(argv):
     if cmd not in ('apply', 'revert', 'status'):
         print(__doc__)
         return 1
+    if not os.path.isfile(xbe):
+        print(f'widescreen: no {xbe}; unpack the game first')
+        return 1
     with open(xbe, 'rb') as f:
         d = bytearray(f.read())
     st = state(d)
@@ -130,13 +144,12 @@ def main(argv):
             print('widescreen: already 16:9')
             return 0
         if not os.path.exists(backup):
-            shutil.copyfile(xbe, backup)
+            write_file(backup, bytes(d))       # d is still what is on disk
         for va, orig, new, what in SITES:
             off = file_offset(d, va)
             d[off:off + len(new)] = new
             print(f'  {va:#010x}  {what}')
-        with open(xbe, 'wb') as f:
-            f.write(d)
+        write_file(xbe, d)
         print(f'widescreen: {xbe} patched to 16:9 ({len(SITES)} sites); original kept as {backup}')
         return 3
     if st == '4x3':
@@ -145,8 +158,7 @@ def main(argv):
     for va, orig, new, _ in SITES:
         off = file_offset(d, va)
         d[off:off + len(orig)] = orig
-    with open(xbe, 'wb') as f:
-        f.write(d)
+    write_file(xbe, d)
     print(f'widescreen: {xbe} back to 4:3')
     return 3
 
