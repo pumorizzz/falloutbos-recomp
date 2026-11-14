@@ -193,7 +193,7 @@ environment.
 | Variable | Effect |
 |---|---|
 | `RECOMP_GPU_RASTER=1` \| `warp` \| `compare` \| `0` | draw on the GPU (WARP if there is no hardware adapter), on WARP, on both paths with a difference report per flip, or on the CPU |
-| `RECOMP_GPU_RASTER_SCALE=<n>` \| `<x>x<y>` | render resolution as a multiple of 640x480 (1-8 each way; the launcher offers 1x-4x, and `3x2` -- 1920x960, the width of 1080p -- and `4x3` -- 2560x1440, pixel for pixel at 16:9 -- when the XBE is patched to 16:9) |
+| `RECOMP_GPU_RASTER_SCALE=<n>` \| `<x>x<y>` | render resolution as a multiple of 640x480 (1-8 each way; the launcher offers 1x-4x, and `4x3` -- 2560x1440, pixel for pixel at 16:9 -- when the XBE is patched to 16:9) |
 | `RECOMP_GPU_RASTER_SSAA=<n>` | supersampling: the GPU draws n times the render resolution each way (2-4) and averages each n x n block down to it before the picture is scaled to the window; scale x n is at most 8 a side (n is lowered otherwise) |
 | `RECOMP_GPU_RASTER_MSAA=<n>` | 2, 4 or 8 samples, with or without SSAA |
 | `RECOMP_FB_SIZE=<w>x<h>` | the picture's size; the window fits it to the screen |
