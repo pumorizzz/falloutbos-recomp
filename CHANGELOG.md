@@ -31,7 +31,9 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
   (2560x1440, pixel for pixel at 16:9) only when `game\default.xbe` is
   patched to 16:9 (an old `render=4x3` opens as 4x otherwise), SSAA
   (off/2x/3x/4x) and MSAA as separate choices, kept as `ssaa` in
-  `bin\launcher.ini`.
+  `bin\launcher.ini`. SSAA is locked (Off, greyed) until "Unlock" is ticked
+  and a warning on how it works and what it costs is answered Yes; kept as
+  `ssaa_unlocked`.
 - Russian: `tools/russian.py apply` translates `gtext.sdb` (dialogue, quests,
   menus, hints), the names in `global.sdb`/`deftexte.sdb` and in each level's own
   `.sdb`, and the inventory labels and the loading screen's `Loading...` inside

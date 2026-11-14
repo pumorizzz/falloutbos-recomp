@@ -71,11 +71,13 @@ static const Choice k_fps[] = {
 static const char *const k_sdb[] = { "gtext.sdb", "global.sdb", "deftexte.sdb" };
 static const char *const k_lang[] = { "en", "ru" };
 
-enum { ID_RENDER = 100, ID_OUTPUT, ID_AA, ID_FPS, ID_FULL, ID_LANG, ID_PLAY, ID_QUIT, ID_SSAA };
+enum { ID_RENDER = 100, ID_OUTPUT, ID_AA, ID_FPS, ID_FULL, ID_LANG, ID_PLAY, ID_QUIT, ID_SSAA,
+       ID_SSAA_UNLOCK };
 
 static char s_root[MAX_PATH];           /* the repository: bin\.. */
 static char s_ini[MAX_PATH];
 static HWND s_render, s_output, s_aa, s_fps, s_full, s_lang, s_ssaa, s_hint;
+static HWND s_ssaa_unlock;              /* SSAA stays Off and greyed until this is ticked */
 static int s_render_n;                  /* entries of k_render shown: 4x3 only for 16:9 */
 static HFONT s_font;
 
@@ -134,6 +136,30 @@ static void clamp_ssaa(void)
     SendMessageA(s_ssaa, CB_SETCURSEL, (WPARAM)i, 0);
 }
 
+/* SSAA is locked until the player has read what it costs: the box is greyed
+ * and Off, and ticking "Unlock" asks first. The answer is kept in the ini. */
+static void set_ssaa_unlocked(int on)
+{
+    SendMessageA(s_ssaa_unlock, BM_SETCHECK, on ? BST_CHECKED : BST_UNCHECKED, 0);
+    if (!on)
+        SendMessageA(s_ssaa, CB_SETCURSEL, 0, 0);
+    EnableWindow(s_ssaa, on);
+}
+
+static int confirm_ssaa(HWND owner)
+{
+    return MessageBoxA(owner,
+        "Supersampling (SSAA) draws the whole picture n times larger each way "
+        "and averages every n x n block down to one pixel. It smooths "
+        "everything, textures and cut-out edges included.\n\n"
+        "It costs n x n times the pixels: SSAA 2x is 4 times the GPU work, "
+        "3x is 9 times, 4x is 16 times, and video memory grows the same way. "
+        "4x with SSAA 2x draws 5120 x 3840 and runs at about 23 fps in Carbon "
+        "on a fast card.\n\n"
+        "MSAA smooths the edges of models for far less. Unlock SSAA anyway?",
+        "Supersampling (SSAA)", MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2) == IDYES;
+}
+
 static void update_hint(void)
 {
     int sx, sy;
@@ -158,6 +184,8 @@ static void save(void)
     WritePrivateProfileStringA("launcher", "render", k_render[selected(s_render)].value, s_ini);
     WritePrivateProfileStringA("launcher", "output", k_output[selected(s_output)].value, s_ini);
     WritePrivateProfileStringA("launcher", "ssaa", k_ssaa[selected(s_ssaa)].value, s_ini);
+    WritePrivateProfileStringA("launcher", "ssaa_unlocked",
+        SendMessageA(s_ssaa_unlock, BM_GETCHECK, 0, 0) == BST_CHECKED ? "1" : "0", s_ini);
     WritePrivateProfileStringA("launcher", "msaa", k_aa[selected(s_aa)].value, s_ini);
     WritePrivateProfileStringA("launcher", "fps", k_fps[selected(s_fps)].value, s_ini);
     WritePrivateProfileStringA("launcher", "fullscreen",
@@ -552,10 +580,13 @@ static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
         if (GetPrivateProfileIntA("launcher", "fullscreen", 1, s_ini))
             SendMessageA(s_full, BM_SETCHECK, BST_CHECKED, 0);
         y += 84;
-        make("STATIC", "Supersampling (SSAA):", 0, 16, y, 300, 18, h, 0);
+        make("STATIC", "Supersampling (SSAA):", 0, 16, y, 200, 18, h, 0);
+        s_ssaa_unlock = make("BUTTON", "Unlock", BS_CHECKBOX | WS_TABSTOP,
+                             236, y - 1, 80, 20, h, ID_SSAA_UNLOCK);
         GetPrivateProfileStringA("launcher", "ssaa", "1", v, sizeof v, s_ini);
         s_ssaa = combo(h, ID_SSAA, 16, y + 20, k_ssaa, COUNT(k_ssaa),
                        find_value(k_ssaa, COUNT(k_ssaa), v, 0));
+        set_ssaa_unlocked(GetPrivateProfileIntA("launcher", "ssaa_unlocked", 0, s_ini) == 1);
         y += 56;
         make("STATIC", "Multisampling (MSAA):", 0, 16, y, 300, 18, h, 0);
         GetPrivateProfileStringA("launcher", "msaa", "4", v, sizeof v, s_ini);
@@ -599,6 +630,12 @@ static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
         } else if ((LOWORD(w) == ID_RENDER || LOWORD(w) == ID_SSAA)
                    && HIWORD(w) == CBN_SELCHANGE) {
             clamp_ssaa();
+            update_hint();
+        } else if (LOWORD(w) == ID_SSAA_UNLOCK && HIWORD(w) == BN_CLICKED) {
+            if (SendMessageA(s_ssaa_unlock, BM_GETCHECK, 0, 0) == BST_CHECKED)
+                set_ssaa_unlocked(0);
+            else if (confirm_ssaa(h))
+                set_ssaa_unlocked(1);
             update_hint();
         }
         return 0;
