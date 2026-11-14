@@ -83,7 +83,8 @@ if (-not (Test-Path (Join-Path $Toolkit '.git'))) {
 } else {
     # An older checkout (sp00nznet's work/falloutbos, or this branch from
     # before a fix) is moved up to the fork's branch -- but only by a
-    # fast-forward, so local commits and edits are never thrown away.
+    # fast-forward (of HEAD and of the local branch), so local commits and
+    # edits are never thrown away.
     # Not through Run: with no network the toolkit already here is still
     # good enough to build, so a failed fetch is said and set aside.
     Say "--> checking the toolkit against $ToolkitRef"
@@ -111,9 +112,21 @@ if (-not (Test-Path (Join-Path $Toolkit '.git'))) {
         $ff = $LASTEXITCODE -eq 0
         $head = (git -C $Toolkit rev-parse HEAD).Trim()
         if ($ToolkitRewritten -contains $head) { $ff = $true }
-        if ($ff -and -not (git -C $Toolkit status --porcelain --untracked-files=no)) {
+        # checkout -B moves the local branch whatever HEAD is on: a gpu-rastr
+        # with commits of its own, checked out elsewhere (another branch, a
+        # detached bisect point), would keep them only in the reflog.
+        $branchOk = $true
+        $localBranch = (git -C $Toolkit rev-parse --verify --quiet "refs/heads/$ToolkitRef")
+        if ($LASTEXITCODE -eq 0 -and $localBranch) {
+            $localBranch = "$localBranch".Trim()
+            git -C $Toolkit merge-base --is-ancestor $localBranch $tip
+            $branchOk = ($LASTEXITCODE -eq 0) -or ($ToolkitRewritten -contains $localBranch)
+        }
+        if ($ff -and $branchOk -and -not (git -C $Toolkit status --porcelain --untracked-files=no)) {
             Run "updating the toolkit to $ToolkitRef" { git -C $Toolkit checkout -B $ToolkitRef $tip }
             $ToolkitUpdated = $true
+        } elseif (-not $branchOk) {
+            Say "Local branch $ToolkitRef in $Toolkit has commits the fork's $ToolkitRef does not; left as it is. To take the fixes: git -C deps\xboxrecomp checkout $ToolkitRef; git -C deps\xboxrecomp pull $ToolkitUrl $ToolkitRef"
         } else {
             Say "Toolkit in $Toolkit has local changes; left as it is. To take the fixes: git -C deps\xboxrecomp pull $ToolkitUrl $ToolkitRef"
         }
