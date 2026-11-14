@@ -216,6 +216,18 @@ def movie_subtitles():
     return [(name_hash('SUB_' + m), '\n'.join(c)) for m, c in cues.items()]
 
 
+# Keys the original text does not have, for the port's own additions: the
+# Extras menu's "Trailer" item (sub_000447D0 in recomp_manual.c shows it only
+# when gtext has the key, so the English set keeps the original list).
+GTEXT_NEW_KEYS = {
+    'BONUS_TRAILER': 'Трейлер',
+}
+
+
+def gtext_new_keys():
+    return [(name_hash(k), to_game(v)) for k, v in GTEXT_NEW_KEYS.items()]
+
+
 def tsv_read(path):
     m = {}
     with open(path, encoding='utf-8') as f:
@@ -503,11 +515,12 @@ def sdb_apply(resx):
         tr = {}
         for t in tsvs:
             tr.update(tsv_read(t))
-        extra = movie_subtitles() if name == 'gtext.sdb' else None
+        extra = movie_subtitles() + gtext_new_keys() if name == 'gtext.sdb' else None
         c, done, total = sdb_one(os.path.join(resx, name), tr, extra=extra)
         changed += c
         print(f'  {name}: {done} of {total} strings in Russian'
-              + (f', subtitles for {len(extra)} movies' if extra else ''))
+              + (f', subtitles for {len(extra) - len(GTEXT_NEW_KEYS)} movies'
+                 f', {len(GTEXT_NEW_KEYS)} new key(s)' if extra else ''))
     nm = names()
     done = total = 0
     levels = level_sdbs(resx)

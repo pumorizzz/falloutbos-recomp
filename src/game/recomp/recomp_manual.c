@@ -336,6 +336,114 @@ void sub_0003A250(void)
 }
 #undef eax
 
+/* ---------------------------------------------------------------------------
+ * The trailer in the Extras menu.
+ *
+ * The movie table (.data 0xED1F8 + n*0x100, a path each) holds 17 movies;
+ * the one to play is the number in [0xFA398] (0x6A80F opens it). Number 0 is
+ * FO_Trailer.bik, and nothing in the game ever stores 0 there: the trailer is
+ * on the disc but unreachable. The Extras menu (vtable 0xE3B40) builds its
+ * list in sub_000447D0 (an item per gtext key, by unlock level [0x276FCC]) and
+ * on a choice sub_000449B0 maps the item's key to a movie number; a key it
+ * does not know falls through to "play [0xFA398]".
+ *
+ * So: the list gets a "Trailer" item after "Fallout Intro" when gtext has the
+ * key BONUS_TRAILER (tools/russian.py adds it to the Russian set; the English
+ * set has none, and English keeps the original list), and choosing it stores
+ * 0 before the original handler runs.
+ * ------------------------------------------------------------------------- */
+extern void sub_0005B1B0(void);
+extern void sub_0005B1F0(void);
+extern void sub_0005B280(void);
+extern void sub_0005B520(void);
+extern void sub_000729A0(void);
+
+#define BONUS_TRAILER_KEY 0x637370ACu             /* sub_hash("BONUS_TRAILER") */
+
+static uint32_t bonus_this_call(void (*fn)(void), uint32_t self, const uint32_t *args, int n)
+{
+    g_ecx = self;
+    return sub_call(fn, args, n, 1);
+}
+
+static uint32_t bonus_text(uint32_t key)
+{
+    g_ecx = MEM32(0x00114850u);
+    return sub_call(sub_0005AA00, &key, 1, 1);    /* wide string or 0 */
+}
+
+static void bonus_add(uint32_t self, uint32_t key)
+{
+    uint32_t args[5] = { key, 0, 1, key, 0 };
+    bonus_this_call(sub_0005B1B0, self, args, 5);
+}
+
+/* sub_000447D0, thiscall (1 argument, ret 4): the Extras list, as the
+ * original, with the trailer item added. */
+void sub_000447D0(void)
+{
+    static const uint32_t level6[] = {
+        0xC2846018u, 0xC9DA1D98u, 0xC9DA1D99u, 0xC9DA1D9Au,
+        0xC9DA1D9Bu, 0xC9DA1D9Cu, 0xC9DA1D9Du,
+    };
+    uint32_t self = g_ecx, arg = MEM32(g_esp + 4), args[6], s, i;
+    int32_t level;
+    float f;
+
+    args[0] = arg; args[1] = 0;
+    bonus_this_call(sub_0005B1F0, self, args, 2);
+    MEM8(self + 0x80) = 0;
+    MEM16(self + 0x82) = 0;
+    MEM32(self) = 0x000E3B40u;
+    MEM8(self + 0x62) = 4;
+
+    bonus_add(self, 0xC2846013u);                 /* Fallout Intro */
+    if (bonus_text(BONUS_TRAILER_KEY))
+        bonus_add(self, BONUS_TRAILER_KEY);       /* Trailer */
+    bonus_add(self, 0xC2846012u);                 /* Credits */
+    bonus_add(self, 0xC2846015u);                 /* Chapter 1 - Cain */
+    bonus_add(self, 0xC2846014u);                 /* Chapter 1 - Cyrus */
+    bonus_add(self, 0xC2846017u);                 /* Chapter 1 - Nadia */
+    level = (int32_t)MEM32(0x00276FCCu);
+    if (level >= 4)
+        bonus_add(self, 0xC2846016u);             /* Chapter 2 */
+    if (level >= 5)
+        bonus_add(self, 0xC2846019u);             /* Chapter 3 */
+    if (level >= 6)
+        for (i = 0; i < sizeof level6 / sizeof level6[0]; i++)
+            bonus_add(self, level6[i]);           /* Mutant Transformation .. Skinlab */
+
+    /* The title: wide sprintf(this + 0x82, text 0x901D09A6, (float)[0x277300],
+     * (float)[0x2771C8], 0, 0), then select with -1. */
+    s = bonus_text(0x901D09A6u);
+    args[0] = self + 0x82;
+    args[1] = s;
+    f = (float)(int32_t)MEM32(0x00277300u); memcpy(&args[2], &f, 4);
+    f = (float)(int32_t)MEM32(0x002771C8u); memcpy(&args[3], &f, 4);
+    args[4] = 0; args[5] = 0;
+    sub_call(sub_000729A0, args, 6, 0);
+    args[0] = 0xFFFFFFFFu;
+    bonus_this_call(sub_0005B520, self, args, 1);
+
+    g_eax = self;
+    g_esp += 8;                                   /* ret 4 */
+}
+
+/* Entry hook of sub_000449B0 (the Extras choice, thiscall): the chosen item
+ * is sub_0005B280((char)[this+0x60], -1); for the trailer's key store movie
+ * 0, which the original then plays through its default branch. */
+void sub_000449B0_enter(void)
+{
+    uint32_t self = g_ecx, eax = g_eax, edx = g_edx, args[2], item;
+
+    args[0] = (uint32_t)(int32_t)(int8_t)MEM8(self + 0x60);
+    args[1] = 0xFFFFFFFFu;
+    item = bonus_this_call(sub_0005B280, self, args, 2);
+    if (item && MEM32(item + 0x70) == BONUS_TRAILER_KEY)
+        MEM32(0x000FA398u) = 0;
+    g_ecx = self; g_eax = eax; g_edx = edx;
+}
+
 /* ── Manual function overrides ─────────────────────────────── */
 
 /*

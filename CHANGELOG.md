@@ -69,6 +69,13 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
   as `SUB_<movie>` keys; the port queues the current cue each movie frame in a
   replaced `sub_0003A250` (`recomp_manual.c`). English has no such keys and no
   subtitles. Songs are not subtitled.
+- The trailer in Extras (Russian set): `FO_Trailer.bik` is movie 0 of the
+  game's movie table, and nothing in the game ever picks movie 0, so the
+  trailer on the disc was unreachable. Extras now lists "Трейлер" after
+  "Вступление Fallout" when `gtext.sdb` has the key `BONUS_TRAILER` (added by
+  `russian.py apply`); the list is built in a replaced `sub_000447D0` and an
+  entry hook of `sub_000449B0` stores movie 0 for it. English keeps the
+  original list.
 - Russian credits: each heading and role, and the thanks, get a Russian line
   under the English one, like subtitles (in place of blank spacer lines; the
   Russian text in the dashboard title image `$$XTIMAGE`). The level-up prompt

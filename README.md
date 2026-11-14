@@ -96,7 +96,8 @@ Switching back and forth needs no rebuild.
   the game's own font; songs are not. The cues are in `tools/ru/movies.tsv`
   (transcribed with Whisper), `apply` puts them into `gtext.sdb` of the Russian
   set, and the port draws them over the playing movie, so English plays
-  without them.
+  without them. The trailer, on the disc but never played by the game, is
+  added to Extras as "Трейлер" (Russian set only).
 - **Credits:** each heading and role (and the thanks) gets a Russian line under
   the English one, like subtitles; names, songs and labels stay as they are. The
   credits table in the XBE cannot grow, so the Russian lines take the place of
