@@ -20,6 +20,8 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include <stdlib.h>   /* getenv, atoi */
+#include <time.h>     /* time */
 #include <stddef.h>   /* ptrdiff_t */
 #include <string.h>
 
@@ -305,6 +307,44 @@ static void fbos_subtitles(void)
     }
 }
 
+/* FBOS_TEST_LEVELUP=<seconds>, a test switch: raise player 1's "level
+ * gained" flag (bit 0 of [player+0x828], set by sub_00036250 when experience
+ * crosses a level) that many seconds after each new player object appears,
+ * so the HUD shows "Press BACK to Level Up" without playing to the next
+ * level. Player 1 is [0x10D0CC]. The HUD (sub_000414F0) starts a 4-second
+ * timer at [hud+0xC0] when it first sees the flag and sub_00041B40 draws the
+ * prompt while it runs, as after a real level-up: hence the delay, to get
+ * past a level's opening window first. Only the flag: the level-up screen it
+ * opens gives no points that experience did not earn. */
+static void fbos_test_levelup(void)
+{
+    static int delay = -2;
+    static uint32_t seen, done;
+    static time_t t0;
+    uint32_t p;
+
+    if (delay == -2) {
+        const char *v = getenv("FBOS_TEST_LEVELUP");
+        delay = v && *v ? atoi(v) : -1;
+        if (delay >= 0)
+            fprintf(stderr, "[TEST] FBOS_TEST_LEVELUP: level-up flag on player 1 after %d s\n", delay);
+    }
+    if (delay < 0)
+        return;
+    p = MEM32(0x0010D0CCu);
+    if (!p || p == done)
+        return;
+    if (p != seen) {
+        seen = p;
+        t0 = time(NULL);
+    }
+    if (time(NULL) - t0 >= delay) {
+        MEM32(p + 0x828) |= 1;
+        done = p;
+        fprintf(stderr, "[TEST] level-up flag set on player 0x%08X\n", p);
+    }
+}
+
 /* sub_0003A250, as the original (each object on the list at [0x10E1EC] gets
  * vtable[0](1), then a tail jump to 0x19820 with ecx = 0x10E1EC), with the
  * movie subtitle queued first. Called once a frame from the main loop. */
@@ -313,6 +353,7 @@ void sub_0003A250(void)
 {
     uint32_t node;
 
+    fbos_test_levelup();
     fbos_subtitles();
     PUSH32(g_esp, g_esi);
     for (node = MEM32(0x0010E1ECu); node; node = MEM32(node + 4)) {

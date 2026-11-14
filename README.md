@@ -215,7 +215,10 @@ environment.
 Diagnostics: `RECOMP_FB_DUMP=prefix` writes frames as BMP, `RECOMP_WATCHDOG_SECS=N`
 reports where the guest is after N seconds, `RECOMP_GPU_RASTER_PRESENT_DUMP=prefix`
 dumps shown frames from the GPU path, and `FBOS_PROFILE=<start>,<secs>` samples
-every thread.
+every thread. `FBOS_TEST_LEVELUP=<secs>` raises player 1's "level gained" flag
+that many seconds after a level loads, so the HUD shows "Press BACK to Level
+Up" for its 4 seconds without playing to the next level (a test switch: no
+points come with it).
 
 ## What this fork fixed
 

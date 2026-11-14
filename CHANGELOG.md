@@ -87,6 +87,11 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
   Fallout 1") and "Клип Skinlab 2" (`New_Bonus_SkinLab.bik`: the Skinlab clip
   titled "Beneath the Surface", quieter, after "Клип Skinlab"). The added
   movies are one table, `bonus_movies` in `recomp_manual.c`.
+- `FBOS_TEST_LEVELUP=<secs>`, a test switch: raises player 1's level-gained
+  flag (bit 0 of `[player+0x828]`, player 1 at `[0x10D0CC]`) that many seconds
+  after the player object appears, so the 4-second "Press BACK to Level Up"
+  prompt can be seen without playing to a level (checked in Russian:
+  "Нажми BACK: Новый Уровень" fits its plate).
 - Russian credits: each heading and role, and the thanks, get a Russian line
   under the English one, like subtitles (in place of blank spacer lines; the
   Russian text in the dashboard title image `$$XTIMAGE`). The level-up prompt
