@@ -31,7 +31,9 @@ draws them over the Bink movies (src/game/recomp/recomp_manual.c).
 
 Translations: tools/ru/<name>.tsv and tools/ru/<name>/*.tsv, lines
 "hash<TAB>text" (hash as in the export, \\n for a line break). A string with
-no line keeps its English.
+no line keeps its English. A line without a TAB or a text, a bad hash, or a
+cue past what the port draws is an error naming file:line, found before
+anything is written.
 
 Code fixes (XBE_SITES, ten 4-byte sites of game/default.xbe, each checked
 against its original bytes): the wide sprintf kept only the low byte of the
@@ -194,12 +196,17 @@ def sdb_insert(ents, slots, extra):
 
 MOVIES = os.path.join(RU, 'movies.tsv')
 
+# What the port draws (recomp_manual.c: SUB_MAX_CUES, SUB_TEXT - 1 bytes, the
+# four lines fbos_subtitles lays out); past them it drops the rest unsaid.
+SUB_MAX_CUES, SUB_TEXT_MAX, SUB_LINES = 48, 191, 4
+
 
 def movie_subtitles():
     """[(hash of "SUB_<movie>", cues)] from tools/ru/movies.tsv, for gtext.sdb.
     One string per movie, a cue a line: "<start> <end> <text>", seconds with
     two decimals, a line break inside the text written as '^' (the port,
-    fbos_subtitles in recomp_manual.c, reads them back)."""
+    fbos_subtitles in recomp_manual.c, reads them back). A cue past what the
+    port draws (48 a movie, 191 bytes, 4 lines) is an error naming file:line."""
     if not os.path.exists(MOVIES):
         return []
     cues = {}
@@ -208,11 +215,27 @@ def movie_subtitles():
             line = line.rstrip('\r\n')
             if not line or line.startswith('#'):
                 continue
-            movie, a, b, text = line.split('\t')
-            if float(b) <= float(a) or '^' in text:
+            parts = line.split('\t')
+            if len(parts) != 4:
+                raise ValueError(f'{MOVIES}:{n}: want movie<TAB>start<TAB>end<TAB>text')
+            movie, a, b, text = parts
+            try:
+                a, b = float(a), float(b)
+            except ValueError:
+                raise ValueError(f'{MOVIES}:{n}: start and end are seconds') from None
+            if b <= a or '^' in text:
                 raise ValueError(f'{MOVIES}:{n}: bad cue')
-            cues.setdefault(movie.lower(), []).append(
-                '%.2f %.2f %s' % (float(a), float(b), to_game(text.replace('\\n', '^'))))
+            cue = to_game(text.replace('\\n', '^'))
+            if any(ord(c) > 0xFF for c in cue):
+                raise ValueError(f'{MOVIES}:{n}: a character the fonts do not have')
+            if len(cue) > SUB_TEXT_MAX:
+                raise ValueError(f'{MOVIES}:{n}: {len(cue)} bytes, the port keeps {SUB_TEXT_MAX}')
+            if cue.count('^') + 1 > SUB_LINES:
+                raise ValueError(f'{MOVIES}:{n}: {cue.count("^") + 1} lines, the port draws {SUB_LINES}')
+            cues.setdefault(movie.lower(), []).append('%.2f %.2f %s' % (a, b, cue))
+    for movie, c in cues.items():
+        if len(c) > SUB_MAX_CUES:
+            raise ValueError(f'{MOVIES}: {movie}: {len(c)} cues, the port keeps {SUB_MAX_CUES}')
     return [(name_hash('SUB_' + m), '\n'.join(c)) for m, c in cues.items()]
 
 
@@ -234,16 +257,25 @@ def gtext_new_keys():
 
 def tsv_read(path):
     m = {}
-    with open(path, encoding='utf-8') as f:
-        for n, line in enumerate(f, 1):
-            line = line.rstrip('\r\n')
-            if not line or line.startswith('#'):
-                continue
-            h, _, text = line.partition('\t')
-            # \n is a line break; \uXXXX a code the font draws as a button
-            # icon (U+0080..U+008F), invisible in an editor
-            text = re.sub(r'\\u([0-9a-fA-F]{4})', lambda c: chr(int(c.group(1), 16)), text)
-            m[int(h, 16)] = text.replace('\\n', '\n')
+    try:
+        with open(path, encoding='utf-8') as f:
+            for n, line in enumerate(f, 1):
+                line = line.rstrip('\r\n')
+                if not line or line.startswith('#'):
+                    continue
+                h, tab, text = line.partition('\t')
+                if not tab:
+                    raise ValueError(f'{path}:{n}: no TAB between the hash and the text')
+                if not re.fullmatch(r'[0-9a-fA-F]{1,8}', h):
+                    raise ValueError(f'{path}:{n}: {h[:20]!r} is not a hash')
+                if not text:
+                    raise ValueError(f'{path}:{n}: no text (delete the line to keep the English)')
+                # \n is a line break; \uXXXX a code the font draws as a button
+                # icon (U+0080..U+008F), invisible in an editor
+                text = re.sub(r'\\u([0-9a-fA-F]{4})', lambda c: chr(int(c.group(1), 16)), text)
+                m[int(h, 16)] = text.replace('\\n', '\n')
+    except UnicodeDecodeError as e:
+        raise ValueError(f'{path}: not UTF-8 ({e})') from None
     return m
 
 
@@ -507,8 +539,11 @@ def sdb_one(path, tr, by_text=False, extra=None):
     return int(changed), done, len(ents)
 
 
-def sdb_apply(resx):
-    changed = 0
+def translations():
+    """Every translation sdb_apply writes, read and checked: ({name: (tr, extra)}
+    for SDBS, the level names). apply calls it before its first write, so a
+    bad line stops it with nothing changed."""
+    out = {}
     for name in SDBS:
         base = os.path.join(RU, name[:-4])
         tsvs = [base + '.tsv'] if os.path.exists(base + '.tsv') else []
@@ -519,13 +554,22 @@ def sdb_apply(resx):
         tr = {}
         for t in tsvs:
             tr.update(tsv_read(t))
-        extra = movie_subtitles() + gtext_new_keys() if name == 'gtext.sdb' else None
+        out[name] = (tr, movie_subtitles() + gtext_new_keys() if name == 'gtext.sdb' else None)
+    return out, names()
+
+
+def sdb_apply(resx, pre):
+    changed = 0
+    sdb, nm = pre
+    for name in SDBS:
+        if name not in sdb:
+            continue
+        tr, extra = sdb[name]
         c, done, total = sdb_one(os.path.join(resx, name), tr, extra=extra)
         changed += c
         print(f'  {name}: {done} of {total} strings in Russian'
               + (f', subtitles for {len(extra) - len(GTEXT_NEW_KEYS)} movies'
                  f', {len(GTEXT_NEW_KEYS)} new key(s)' if extra else ''))
-    nm = names()
     done = total = 0
     levels = level_sdbs(resx)
     for p in levels:
@@ -656,7 +700,7 @@ def fonts_apply(resx):
 # the low byte only. English never notices; Cyrillic in a format string such
 # as "%cВыбрать %u  %cНазад" comes out as "K1@0BL" (ы = U+044B -> 'K').
 # `mov ax, word ptr [ebx]` + nop copies the whole character. The code changes,
-# so the generated C has to be redone afterwards (./regen.sh, then build).
+# so the generated C has to be redone afterwards (./regen.sh --disasm, then build).
 # The launcher checks these ten VAs too (k_code_va): keep the lists alike.
 XBE_SITES = [(0x00072D46, bytes.fromhex('660FB603'), bytes.fromhex('668B0390'))]
 
@@ -930,7 +974,7 @@ def xbe_patch(xbe, to_new, dry=False):
               f'and the credits ({state})')
     if code:
         print(f'  default.xbe: wide sprintf copies whole characters ({state}); '
-              'regenerate and build (./regen.sh, cmake --build)')
+              'regenerate and build (./regen.sh --disasm, cmake --build)')
     return 1 if code or text else 0
 
 
@@ -1028,16 +1072,18 @@ def run(argv):
               f'XBE strings and credits in Russian {patched(strings)}/{len(strings)}')
         return 0
     if cmd == 'apply':
-        # Everything that can refuse does so before the first write: the
-        # XBE (another disc), then the fonts (no Pillow, damaged backup).
+        # Everything that can refuse does so before the first write: the XBE
+        # (another disc), the translations (file:line), then the fonts (no
+        # Pillow, damaged backup).
         if xbe_patch(xbe, True, dry=True) < 0:
             return 1
+        pre = translations()
         f = fonts_apply(resx)
         if f < 0:
             return 1
         x = xbe_patch(xbe, True)
         xbe_variants(xbe)
-        n = sdb_apply(resx) + f + x
+        n = sdb_apply(resx, pre) + f + x
         print('russian: applied' if n else 'russian: nothing to do')
         return 3 if n else 0
     if cmd == 'revert':
