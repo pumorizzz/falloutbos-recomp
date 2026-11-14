@@ -76,6 +76,11 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
   `russian.py apply`); the list is built in a replaced `sub_000447D0` and an
   entry hook of `sub_000449B0` stores movie 0 for it. English keeps the
   original list.
+- Fallout 1's intro in Extras (Russian set), with the GNN card's subtitle:
+  `fo1_intro.bik` is on the disc but not even in the movie table, which
+  cannot grow. "Вступление Fallout 1" (key `BONUS_FO1_INTRO`) follows
+  "Трейлер", and the choice hook writes the chosen movie's path into movie
+  0's slot, which nothing else uses.
 - Russian credits: each heading and role, and the thanks, get a Russian line
   under the English one, like subtitles (in place of blank spacer lines; the
   Russian text in the dashboard title image `$$XTIMAGE`). The level-up prompt

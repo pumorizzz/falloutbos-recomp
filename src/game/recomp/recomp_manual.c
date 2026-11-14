@@ -351,6 +351,12 @@ void sub_0003A250(void)
  * key BONUS_TRAILER (tools/russian.py adds it to the Russian set; the English
  * set has none, and English keeps the original list), and choosing it stores
  * 0 before the original handler runs.
+ *
+ * fo1_intro.bik (Fallout 1's intro, with the GNN card) is on the disc too but
+ * not even in the table, and the table cannot grow (the credits table follows
+ * at 0xEE300). Movie 0's slot is used by nothing else, so the choice hook
+ * writes the chosen movie's path into it: "Fallout 1 Intro" (key
+ * BONUS_FO1_INTRO) plays through slot 0 as well.
  * ------------------------------------------------------------------------- */
 extern void sub_0005B1B0(void);
 extern void sub_0005B1F0(void);
@@ -359,6 +365,8 @@ extern void sub_0005B520(void);
 extern void sub_000729A0(void);
 
 #define BONUS_TRAILER_KEY 0x637370ACu             /* sub_hash("BONUS_TRAILER") */
+#define BONUS_FO1_KEY     0xC8441180u             /* sub_hash("BONUS_FO1_INTRO") */
+#define BONUS_SLOT0       0x000ED1F8u             /* movie 0's path, 0x100 bytes */
 
 static uint32_t bonus_this_call(void (*fn)(void), uint32_t self, const uint32_t *args, int n)
 {
@@ -400,6 +408,8 @@ void sub_000447D0(void)
     bonus_add(self, 0xC2846013u);                 /* Fallout Intro */
     if (bonus_text(BONUS_TRAILER_KEY))
         bonus_add(self, BONUS_TRAILER_KEY);       /* Trailer */
+    if (bonus_text(BONUS_FO1_KEY))
+        bonus_add(self, BONUS_FO1_KEY);           /* Fallout 1 Intro */
     bonus_add(self, 0xC2846012u);                 /* Credits */
     bonus_add(self, 0xC2846015u);                 /* Chapter 1 - Cain */
     bonus_add(self, 0xC2846014u);                 /* Chapter 1 - Cyrus */
@@ -429,18 +439,33 @@ void sub_000447D0(void)
     g_esp += 8;                                   /* ret 4 */
 }
 
+static void bonus_slot0(const char *path)
+{
+    uint32_t i;
+    for (i = 0; i < 0x100; i++) {
+        MEM8(BONUS_SLOT0 + i) = (uint8_t)*path;
+        if (*path)
+            path++;
+    }
+}
+
 /* Entry hook of sub_000449B0 (the Extras choice, thiscall): the chosen item
- * is sub_0005B280((char)[this+0x60], -1); for the trailer's key store movie
- * 0, which the original then plays through its default branch. */
+ * is sub_0005B280((char)[this+0x60], -1); for an added item put its movie in
+ * slot 0 and store movie 0, which the original then plays through its
+ * default branch. */
 void sub_000449B0_enter(void)
 {
-    uint32_t self = g_ecx, eax = g_eax, edx = g_edx, args[2], item;
+    uint32_t self = g_ecx, eax = g_eax, edx = g_edx, args[2], item, key;
 
     args[0] = (uint32_t)(int32_t)(int8_t)MEM8(self + 0x60);
     args[1] = 0xFFFFFFFFu;
     item = bonus_this_call(sub_0005B280, self, args, 2);
-    if (item && MEM32(item + 0x70) == BONUS_TRAILER_KEY)
+    key = item ? MEM32(item + 0x70) : 0;
+    if (key == BONUS_TRAILER_KEY || key == BONUS_FO1_KEY) {
+        bonus_slot0(key == BONUS_TRAILER_KEY ? "d:\\resx\\FO_Trailer.bik"
+                                             : "d:\\resx\\fo1_intro.bik");
         MEM32(0x000FA398u) = 0;
+    }
     g_ecx = self; g_eax = eax; g_edx = edx;
 }
 
