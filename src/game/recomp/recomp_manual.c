@@ -103,11 +103,12 @@ void sub_000A4E60(void)
  *
  * Done by data rather than by overriding the function: the call is direct,
  * so it does not go through recomp_lookup_manual, and a second definition of
- * sub_00096848 would collide with the generated one. Run once, from the first
- * lookup -- the first indirect call (PsCreateSystemThreadEx) comes long before
- * the check.
+ * sub_00096848 would collide with the generated one. Run once from main(), after
+ * the image is mapped and before the entry point: it used to run from the first
+ * recomp_lookup_manual, which worked only because the first indirect call comes
+ * long before the check.
  * ------------------------------------------------------------------------- */
-static void fbos_skip_dvd_security_sector(void)
+void fbos_skip_dvd_security_sector(void)
 {
     static volatile int done;
     uint32_t cert, size, flags;
@@ -169,7 +170,7 @@ static struct {
 } s_sub = { "", -1 };
 
 /* The game's key hash (0x1E1F0, the same for .clp names). */
-static uint32_t sub_hash(const char *s)
+static uint32_t fbos_key_hash(const char *s)
 {
     uint32_t h = 0;
     for (; *s; s++) {
@@ -179,24 +180,25 @@ static uint32_t sub_hash(const char *s)
     return h;
 }
 
-/* Call a game function: args pushed right to left, a dummy return address;
- * cdecl unless the callee pops them itself (pops = 1). eax comes back. */
-static uint32_t sub_call(void (*fn)(void), const uint32_t *args, int n, int pops)
+/* Call a game function: args pushed right to left and `from` as the return
+ * address -- the replaced function this stands in for, so a fault's backtrace
+ * names it; esp comes back to where it was whichever convention the callee has
+ * (cdecl or stdcall). eax comes back. */
+static uint32_t fbos_guest_call(void (*fn)(void), const uint32_t *args, int n, uint32_t from)
 {
     uint32_t sp = g_esp, ebx = g_ebx, esi = g_esi, edi = g_edi, ebp = g_ebp;
     int i;
     for (i = n - 1; i >= 0; i--)
         PUSH32(g_esp, args[i]);
-    PUSH32(g_esp, 0x0003A250u);
+    PUSH32(g_esp, from);
     fn();
-    (void)pops;
-    g_esp = sp;                                  /* both conventions: back to before */
+    g_esp = sp;                                 /* both conventions: back to before */
     g_ebx = ebx; g_esi = esi; g_edi = edi; g_ebp = ebp;
     return g_eax;
 }
 
 /* "intro" from "d:\resx\intro.bik", lower case. */
-static void sub_movie_key(const char *path, char *out, size_t size)
+static void fbos_sub_key(const char *path, char *out, size_t size)
 {
     const char *b = path, *p;
     size_t n = 0;
@@ -209,7 +211,7 @@ static void sub_movie_key(const char *path, char *out, size_t size)
     out[n] = 0;
 }
 
-static void sub_load(const char *path)
+static void fbos_sub_load(const char *path)
 {
     char key[64];
     uint32_t h, s, n = 0, i;
@@ -217,9 +219,9 @@ static void sub_load(const char *path)
 
     snprintf(s_sub.movie, sizeof s_sub.movie, "%s", path);
     s_sub.count = 0;
-    sub_movie_key(path, key, sizeof key);
-    h = sub_hash(key);
-    s = sub_call(sub_0005AA00, &h, 1, 1);        /* wide string or 0 */
+    fbos_sub_key(path, key, sizeof key);
+    h = fbos_key_hash(key);
+    s = fbos_guest_call(sub_0005AA00, &h, 1, 0x0003A250u);   /* wide string or 0 */
     fprintf(stderr, "[SUB] movie %s: %s\n", key, s ? "subtitles" : "none");
     if (!s)
         return;
@@ -254,7 +256,7 @@ static void fbos_subtitles(void)
     if (!bink || !path[0])
         return;
     if (s_sub.count < 0 || strcmp(s_sub.movie, path) != 0)
-        sub_load(path);
+        fbos_sub_load(path);
     if (s_sub.count <= 0)
         return;
     frame = MEM32(bink + 0x0C);
@@ -283,9 +285,9 @@ static void fbos_subtitles(void)
                 line[nl++] = txt + 1;
         args[0] = MEM32(0x001CC5FCu);            /* gamefonta */
         args[1] = 7; args[2] = 1; args[3] = 0xFFFFFFFFu;
-        sub_call(sub_000712C0, args, 4, 0);
+        fbos_guest_call(sub_000712C0, args, 4, 0x0003A250u);
         args[0] = 0xFFFFFFFFu;                   /* opaque white */
-        sub_call(sub_00071310, args, 1, 0);
+        fbos_guest_call(sub_00071310, args, 1, 0x0003A250u);
         for (k = 0; k < nl; k++) {
             const char *e = strchr(line[k], '^');
             size_t len = e ? (size_t)(e - line[k]) : strlen(line[k]);
@@ -299,10 +301,10 @@ static void fbos_subtitles(void)
             args[0] = 320;
             args[1] = (uint32_t)(416 - (nl - 1 - k) * 20);
             args[2] = buf;
-            sub_call(sub_00071A70, args, 3, 0);
+            fbos_guest_call(sub_00071A70, args, 3, 0x0003A250u);
             g_esp += 256;
         }
-        sub_call(sub_00071380, args, 0, 0);
+        fbos_guest_call(sub_00071380, args, 0, 0x0003A250u);
         g_eax = eax; g_ecx = ecx; g_edx = edx;
     }
 }
@@ -418,22 +420,24 @@ static const struct { uint32_t key; const char *path; } bonus_movies[] = {
     { 0x09F77C95u, "d:\\resx\\New_Bonus_SkinLab.bik" }, /* BONUS_SKINLAB2: the other Skinlab cut */
 };
 
-static uint32_t bonus_this_call(void (*fn)(void), uint32_t self, const uint32_t *args, int n)
+static uint32_t bonus_this_call(void (*fn)(void), uint32_t self, const uint32_t *args, int n,
+                                uint32_t from)
 {
     g_ecx = self;
-    return sub_call(fn, args, n, 1);
+    return fbos_guest_call(fn, args, n, from);
 }
 
+/* The helpers below are the Extras list's (the replaced function at 0x447D0). */
 static uint32_t bonus_text(uint32_t key)
 {
     g_ecx = MEM32(0x00114850u);
-    return sub_call(sub_0005AA00, &key, 1, 1);    /* wide string or 0 */
+    return fbos_guest_call(sub_0005AA00, &key, 1, 0x000447D0u);    /* wide string or 0 */
 }
 
 static void bonus_add(uint32_t self, uint32_t key)
 {
     uint32_t args[5] = { key, 0, 1, key, 0 };
-    bonus_this_call(sub_0005B1B0, self, args, 5);
+    bonus_this_call(sub_0005B1B0, self, args, 5, 0x000447D0u);
 }
 
 /* An added movie's item, if gtext has its key. */
@@ -456,7 +460,7 @@ void sub_000447D0(void)
     float f;
 
     args[0] = arg; args[1] = 0;
-    bonus_this_call(sub_0005B1F0, self, args, 2);
+    bonus_this_call(sub_0005B1F0, self, args, 2, 0x000447D0u);
     MEM8(self + 0x80) = 0;
     MEM16(self + 0x82) = 0;
     MEM32(self) = 0x000E3B40u;
@@ -489,9 +493,9 @@ void sub_000447D0(void)
     f = (float)(int32_t)MEM32(0x00277300u); memcpy(&args[2], &f, 4);
     f = (float)(int32_t)MEM32(0x002771C8u); memcpy(&args[3], &f, 4);
     args[4] = 0; args[5] = 0;
-    sub_call(sub_000729A0, args, 6, 0);
+    fbos_guest_call(sub_000729A0, args, 6, 0x000447D0u);
     args[0] = 0xFFFFFFFFu;
-    bonus_this_call(sub_0005B520, self, args, 1);
+    bonus_this_call(sub_0005B520, self, args, 1, 0x000447D0u);
 
     g_eax = self;
     g_esp += 8;                                   /* ret 4 */
@@ -517,7 +521,7 @@ void sub_000449B0_enter(void)
 
     args[0] = (uint32_t)(int32_t)(int8_t)MEM8(self + 0x60);
     args[1] = 0xFFFFFFFFu;
-    item = bonus_this_call(sub_0005B280, self, args, 2);
+    item = bonus_this_call(sub_0005B280, self, args, 2, 0x000449B0u);
     key = item ? MEM32(item + 0x70) : 0;
     for (i = 0; i < sizeof bonus_movies / sizeof bonus_movies[0]; i++)
         if (key == bonus_movies[i].key) {
@@ -565,8 +569,6 @@ void sub_000449B0_enter(void)
  */
 recomp_func_t recomp_lookup_manual(uint32_t xbox_va)
 {
-    fbos_skip_dvd_security_sector();             /* once; before the media check */
-
     /*
      * TODO: Add your overrides here. Examples:
      *

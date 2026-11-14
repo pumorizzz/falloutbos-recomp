@@ -41,6 +41,7 @@
 #include "../kernel/xbox_memory_layout.h"
 #include "../usb/ohci.h"
 #include "nv2a_gpu_d3d11.h"
+#include "video_player.h"     /* xbox_FramebufferWindowSetAspect */
 
 /* RECOMP_TLS is required: the runtime defines these thread-local, and a plain
  * extern resolves to the image's TLS template rather than this thread's copy,
@@ -88,8 +89,6 @@ static BOOL load_xbe(const char *path, void **out_data, size_t *out_size)
     return TRUE;
 }
 
-void xbox_FramebufferWindowSetAspect(uint32_t n, uint32_t d);   /* fb_present.c */
-
 /* The 11 places of tools/widescreen.py (projection height, camera aspect, matrix
  * diagonals) are read by the generated C from this table, filled at start-up
  * from FBOS_ASPECT (4:3, 16:9 or 16:10). Index 0 is the projection at 0x3292A,
@@ -103,6 +102,7 @@ static const struct { const char *name; uint32_t n, d; } k_fbos_aspect[] = {
 };
 #define FBOS_ASPECT_DEFAULT 1       /* 16:9, also when FBOS_ASPECT is unset */
 void fbos_aspect_select(int aspect);
+void fbos_skip_dvd_security_sector(void);   /* recomp/recomp_manual.c */
 
 /* Name the host address a fault happened at.
  *
@@ -569,6 +569,11 @@ int main(int argc, char **argv)
 
     printf("\nStarting game at entry point 0x%08X...\n", FBOS_ENTRY_POINT);
     fflush(stdout);
+
+    /* The XAPI media check would read the DVD security sector (no disc
+     * here) and exit to the dashboard; clear the certificate bit that asks
+     * for it before any guest code runs. */
+    fbos_skip_dvd_security_sector();
 
     RECOMP_ICALL_FEEDBACK_INIT();
     xbe_entry_point();
