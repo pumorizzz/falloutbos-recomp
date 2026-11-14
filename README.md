@@ -37,7 +37,7 @@ game shipped on Xbox and PS2 only; there was never a PC version.
 | ![First quest in Carbon](docs/images/carbon-quest-ru.jpg) | ![Main menu in English](docs/images/main-menu-en.jpg) |
 | Carbon, the first quest | The original English |
 
-*Live captures of the current build: 1600x900 window, rendered at 3x with 4x MSAA.*
+*Live captures of the current build (1280x720 here), rendered at 3x with 4x MSAA.*
 
 ## Quick start
 
@@ -58,13 +58,17 @@ You need your own **Fallout: Brotherhood of Steel (USA)** disc image (`.iso`).
 
 | Pad | Keyboard |
 |---|---|
-| Left / right stick | WASD / IJKL |
+| Left stick | WASD or keypad 8 / 4 / 2 / 6 |
+| Right stick | IJKL |
+| D-pad (inventory tabs) | arrow keys |
 | A, B, X, Y | Z, X, C, V |
+| White, Black | Q, E |
 | Start, Back | Enter, Backspace |
 | Triggers | 1, 3 |
+| Left / right stick click | Shift / Ctrl |
 
-**F11** toggles full screen. **F9** records your input into `saves\pad_path.txt`,
-**F10** plays it back from where you stand.
+**F11** toggles full screen. **F8** records your input into `saves\pad_path.txt`
+(press again to stop), **F10** plays it back from where you stand.
 
 ## Russian translation
 
@@ -134,12 +138,13 @@ the original files. Formats and internals are documented in the script's header.
 ## Status
 
 **Playable from power-on through the Tutorial and Carbon**, saving to the hard disk
-as it goes; later chapters have not been played yet.
+as it goes; later chapters have not been played through (a save converted from
+the PS2 version loads, Vault Lab 4).
 
 | Stage | State |
 |---|---|
 | XBE | parsed: entry `0x0009547C`, 28 sections, 122 kernel imports, XDK 5558 |
-| Codegen | 3,888 functions, 543k lines of C, 1 unresolved target (`sgdt`, never reached) |
+| Codegen | 3,888 functions, 543k lines of C, 1 unresolved call target (`0x00662F20`, bytes in a data area decoded as code; never reached) |
 | Kernel | 122/122 imports resolved |
 | Graphics | Direct3D 11, or the CPU rasteriser (`RECOMP_GPU_RASTER=0`) |
 | Audio, video | DirectSound through the APU; Bink movies |
@@ -186,9 +191,14 @@ sites: `widescreen.py revert` puts back the 4:3 bytes and leaves the Russian fix
 and the launcher's language switch changes only the XBE's strings, so either order
 works.
 
-`cmake --build` re-runs `./regen.sh` by itself when the toolkit's code generator is
-newer than the last regen, and runs it on a fresh clone with no generated C yet
-when `game/default.xbe` is there (`-DFBOS_AUTO_REGEN=OFF` turns both off).
+`cmake --build` re-runs `./regen.sh` by itself when the C is out of date: the
+toolkit's code generator, `tools/aspect.py` or `tools/widescreen.py` is newer
+than the last regen, or `src/game/recomp/recomp_manual.c` replaces, hooks or
+names other functions than the last regen saw (`gen/.manual_scan`; an edit
+inside a function's body does not count). It also runs it on a fresh clone with
+no generated C yet when `game/default.xbe` is there (`-DFBOS_AUTO_REGEN=OFF`
+turns all of this off). A patch of the XBE's code (`russian.py apply`) is not
+noticed: run `./regen.sh --disasm` after it.
 
 ## Settings
 
@@ -208,14 +218,18 @@ environment.
 | `RECOMP_FPS_LIMIT=<hz>` | frame-rate cap at the flip, 60 by default; `0` lifts it (menus then misbehave) |
 | `RECOMP_VSH_THREADS=<n>` | threads for vertex programs (default: half the logical processors, at most 16) |
 | `RECOMP_KEYBOARD=1` | keyboard as player 1 |
-| `RECOMP_PAD_RECORD=<file>` | F9 records pad 1 into the file, F10 plays it back |
+| `RECOMP_PAD_RECORD=<file>` | F8 records pad 1 into the file, F10 plays it back (time is kept in frames, so it needs `RECOMP_PB_EXEC`) |
 | `RECOMP_PAD_SCRIPT="ms:button,..."` | scripted presses for headless runs, e.g. `25000:start,35000:a` |
 | `RECOMP_PB_EXEC=1`, `RECOMP_FB_WINDOW=1` | execute the pushbuffer (draw) and show a window; both set by the launcher and `Play.cmd` |
 
 Diagnostics: `RECOMP_FB_DUMP=prefix` writes frames as BMP, `RECOMP_WATCHDOG_SECS=N`
 reports where the guest is after N seconds, `RECOMP_GPU_RASTER_PRESENT_DUMP=prefix`
 dumps shown frames from the GPU path, and `FBOS_PROFILE=<start>,<secs>` samples
-every thread. `FBOS_TEST_LEVELUP=<secs>` raises player 1's "level gained" flag
+every thread. `RECOMP_RASTER_THREADS=N` sets the CPU rasteriser's worker threads
+(default: logical processors - 4), `RECOMP_FB_DUMP_FLIPS=<file>` dumps every flip
+while the file exists (`1`: from the start), `RECOMP_KERNEL_LOG_BUDGET=N` logs
+the first N kernel calls (200 by default), and `RECOMP_USB_STATS=1` prints
+controller transfer counts every 5 seconds. `FBOS_TEST_LEVELUP=<secs>` raises player 1's "level gained" flag
 that many seconds after a level loads, so the HUD shows "Press BACK to Level
 Up" for its 4 seconds without playing to the next level (a test switch: no
 points come with it).
@@ -244,7 +258,8 @@ CPU rasteriser.
 **Stability:**
 - a hang loading the Tutorial (the executor owns the D3D fence);
 - running out of memory after ten minutes (heap reclaim);
-- a freeze in the main menu, from archive handles the game closes twice.
+- likely, a freeze in the main menu with `intro.bik` looping: the game closes its archive
+  handles twice (the freeze never reproduced, so the link is not proven).
 
 **Speed:**
 - vertex programs decoded once and run on several threads (66 → 130 fps by Ruby's bar);
@@ -260,7 +275,7 @@ CPU rasteriser.
 | Check | Result | Command |
 |---|---|---|
 | Boot milestones, Interplay logo to Carbon, scripted pad | **8/8** on the CPU and the GPU path; 8/8 with the Russian text | `py -3 tools/boot_check.py` |
-| Toolkit tests for this work (D3D11 on WARP, combiners, FFP, vertex programs, clipping, points, fence, kernel bridge) | all pass | `deps/xboxrecomp/tests/<name>`: `cmake`, then `ctest` |
+| Toolkit tests for this work (D3D11 on WARP, combiners, FFP, vertex programs, clipping, points, fence, kernel bridge, pad recording) | all pass | `deps/xboxrecomp/tests/<name>`: `cmake`, then `ctest` |
 | Live play against a PS2 playthrough | Tutorial and Carbon match | by eye, frame by frame |
 
 `boot_check` fails only on a regression against `config/boot_check_baseline.json`,
@@ -269,7 +284,12 @@ and prints SKIP on a machine without game data.
 ### Known issues
 
 - Lines (`BEGIN_END` 2-4) are not drawn; nothing played so far uses them.
+- On the CPU rasteriser (`RECOMP_GPU_RASTER=0`), triangles cut at the near
+  plane can come out as a "camera wedge"
+  ([picture](docs/images/known-camera-wedge.png)); the GPU path is not affected.
 - After a GPU device loss, one frame shows the previous image.
+- The main-menu freeze with `intro.bik` looping has not come back since the
+  handle fixes, but it was never reproduced, so the cure is likely, not proven.
 - In the Russian translation, dialogue windows have not yet been checked line by line in play.
 
 ## License

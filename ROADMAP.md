@@ -9,9 +9,17 @@
   60 fps cap lifted: Carbon spawn about 146 fps, Ruby's bar about 130 (66
   before the vertex programs ran on several threads); the CPU rasteriser about
   17. What it fixed on the way is in the README, "What this fork fixed".
-- 16:9 (Nemesis2000's patch mapped onto the USA image), a 2560x1440 picture
-  with borderless full screen, and an internal resolution with MSAA and SSAA
-  (3x3 + 4x by default): edges and the scene drawn at 1920x1440.
+- The picture: 16:9 (Nemesis2000's patch mapped onto the USA image), 16:10 or
+  4:3 picked at start from one exe, a 2560x1440 picture with borderless full
+  screen, and an internal resolution with MSAA and SSAA (3x3 + 4x by default).
+- Russian translation: dialogue, quests, menus and hints, item and character
+  names, the XBE's own strings, Cyrillic in the game's three fonts, movie
+  subtitles and the credits; English or Russian picked in the launcher.
+- `bin\FalloutLauncher.exe`: aspect, resolution, SSAA, MSAA, picture size,
+  full screen, frame-rate limit, language.
+- Extras: the four movies on the disc the game never offers (Russian set).
+- Loading a save works (a save converted from the PS2 version loaded, Vault
+  Lab 4, 2026-11-14).
 
 ## Next
 - GPU time per pixel: with the internal resolution (3x3 + 4x MSAA by default)
@@ -20,9 +28,9 @@
   shader variants per combiner setup instead of one ubershader with loops and
   an indexed register file, or a smaller scale for the scene the game already
   draws twice as wide -- would make 4x3 hold 60 everywhere.
-- Play past Carbon: later chapters have not been seen yet. Record the pass;
+- Play past Carbon: later chapters have only been reached from a save, not played. Record the pass;
   compare with the PS2 playthrough where one covers the same place.
-- Load a saved game: saves are written, loading has not been tried.
+- Read the Russian dialogue windows line by line in play.
 - Merge the toolkit's `gpu-rastr` with upstream xboxrecomp v0.16.0 (98 commits
   ahead; conflicts in `nv2a_pb_exec.c`, `tests/nv2a_vsh`, `tools/recomp/lifter.py`,
   so a regen and a full re-check), then offer the fixes upstream and pin the
@@ -46,10 +54,11 @@
 - On the CPU rasteriser, the executor waits for the vertex-program helpers by
   spinning; with more threads than cores that could cost a frame (not
   observed). Fallback to a sleep after a while, or fewer helpers there.
-- Lines (`BEGIN_END` 2-4) are not drawn; nothing in the Tutorial uses them.
+- Lines (`BEGIN_END` 2-4) are not drawn; nothing played so far uses them.
 - The "camera wedge" (docs/images/known-camera-wedge.png): huge triangles
   after the near-plane clip that the CPU rasteriser computes in float; the
   GPU path is not affected.
+- After a GPU device loss one frame shows the previous image.
 
 ## Required by REPO_RULES, not done yet
 - `--headless --record out.mp4` (section 10): xboxrecomp has no ffmpeg pipe

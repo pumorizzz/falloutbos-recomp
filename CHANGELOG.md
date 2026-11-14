@@ -5,17 +5,16 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
 
 ## [Unreleased]
 
-### Added (GPU rendering and play, 2026-10-30 to 2026-11-09)
+### Added (GPU rendering and play, 2026-10-30 to 2026-11-14)
 - Direct3D 11 render back end (`RECOMP_GPU_RASTER`, toolkit `gpu-rastr`):
   depth, stencil, the register combiners in one ubershader, presented from a
   swapchain; `compare` mode; device loss falls back to the CPU rasteriser.
   `Play.cmd` draws on the GPU by default.
 - 60 fps cap at the flip (`RECOMP_FPS_LIMIT`, `0` turns it off).
-- F9/F10 in the window: record the pad into `saves\pad_path.txt`, play it back.
+- F8/F10 in the window: record the pad into `saves\pad_path.txt`, play it back.
 - Vertex programs of large batches on several threads (`RECOMP_VSH_THREADS`),
   bit for bit as on one: by Ruby's bar, uncapped, 66 -> 130 fps.
-- README: what the fork fixed, the checks, and screenshots of the Tutorial and
-  Carbon.
+- README: what the fork fixed and the checks.
 - 16:9: `tools/widescreen.py` maps Nemesis2000's PAL widescreen patch onto the
   USA image (11 sites, each checked; `revert` restores 4:3). The game draws
   16:9 by default (`FBOS_ASPECT`, see Aspect at start below); the XBE patch no
@@ -105,7 +104,39 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
 - `bin\FalloutLauncher.exe` (`tools/launcher`): render resolution, picture
   size, full screen, MSAA and the frame-rate limit (30, 60 or 120), then the game; remembered in `bin\launcher.ini`.
 
+### Changed (GPU rendering and play)
+- Pad recording is on F8 (F10 still plays it back): F9 also toggles the
+  mouse-and-keyboard capture (`RECOMP_MKB`), so one key did both. Recording
+  and playback keep time in frames and need the pushbuffer executor
+  (`RECOMP_PB_EXEC`, set by the launcher and `Play.cmd`); without it the
+  recorder now says so instead of writing every step at 0.
+
 ### Fixed (GPU rendering and play)
+- Point sprites were mirrored vertically for about 85 % of Fallout's particles,
+  the mirroring flipping with the camera: the square's orientation followed the
+  sign of a vertex-program constant (`c[58].y`) that is the game's own data.
+  Texcoord v now always grows down the screen, and a point whose program holds
+  a zero there is drawn instead of dropped.
+- Occlusion (visibility) counts at an internal scale were divided into pixels
+  per query, each losing up to a pixel; samples are summed and divided once per
+  report.
+- A batch of more than 32768 points (196608 back-end vertices) lost the rest;
+  it now goes over in more than one draw.
+- Enter and Esc did nothing in the launcher; Enter now plays, Esc quits.
+- `Setup.cmd`, with the toolkit checked out on another branch or a detached
+  commit, could move the local `gpu-rastr` past commits of its own (left only
+  in git's reflog); it now leaves such a branch as it is.
+- `russian.py apply` read the translations only after it had written the fonts
+  and the XBE, and a bad line was reported without its file; every TSV and
+  `movies.tsv` is now checked first, an error names `file:line`, a line without
+  a TAB or a text is refused instead of blanking the string, and the movie
+  cues are held to what the port draws (48 a movie, 191 bytes, 4 lines).
+  `tools/test_russian.py` checks it.
+- `widescreen.py` wrote `default.xbe` in place; it now goes through a temporary
+  file and a rename, as `russian.py` does, and a missing XBE is said instead of
+  a traceback.
+- After a code patch the launcher and `russian.py` advised `./regen.sh`; they
+  now say `./regen.sh --disasm`, as the README does.
 - The launcher at a display scale of 125 % and more: labels, the hint and long list entries were cut off, the full-screen box ran into Output. The layout now scales with the system DPI.
 - The credits lost their lower lines (English too): the game draws a frame's
   8-bit text in one batch of quads, and the pushbuffer executor kept 1024
@@ -137,7 +168,7 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
   kick-off.
 - Out of contiguous memory after ten minutes in the Tutorial: freed memory is
   reclaimed by default (`RECOMP_HEAP_RECLAIM=1`).
-- Main-menu freeze with `intro.bik` looping: Fallout closes its `.clp` handles
+- Main-menu freeze with `intro.bik` looping, likely (it never reproduced, so the link is not proven): Fallout closes its `.clp` handles
   twice; handle tokens are now handed out in turn, and
   `DUPLICATE_CLOSE_SOURCE` releases the source token and its async-I/O mark.
 - A stutter every 10 seconds: the executor's report no longer reads render
@@ -255,13 +286,6 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
 - `RECOMP_AC97_READY` on by default, so DirectSound initialises.
 - Deferred file I/O APCs turned on (needs xboxrecomp `fix/io-apc-delivery`).
 - Native override of Bink's MMX probe `sub_000A4E60` (until xboxrecomp #186).
-
-### Fixed (boot to Carbon)
-- Bink video block artifacts (scattered white and coloured blocks in the menu
-  background and the intro). The lifter turned `movsx ebp, bp` into a
-  zero-extension; Bink's inverse DCT (`0x000CD7BC`) then read every negative
-  row-6 coefficient as a large positive one. Fixed in xboxrecomp's lifter
-  (`gpu-rastr`); the build re-runs `./regen.sh` by itself to pick it up.
 - Seeds: `0x00095408` (main thread entry), `0x000D845C` (XPP table entry).
 - `docs/boot.md`: each wall on the way to the menu and how it was found.
 - Controller: `RECOMP_USB` on by default, and the window pages that alias the
@@ -275,16 +299,22 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
   carries xboxrecomp #230 (no per-kick trace line) and #231 (rasteriser
   pipelined behind the executor).
 - README: `RECOMP_RASTER_THREADS` and what it does on a 12-thread CPU.
-
 - Quick start: `Setup.cmd` (prerequisites, asks before installing, disc,
   regen, build) and `Play.cmd` (window, pad or keyboard).
 - `tools/boot_check.py`: boot conformance, 8 milestones logo-to-Carbon, against
   a baseline; netlab QA step.
 - Dialogue text confirmed drawing in Carbon (the empty box earlier was a
   capture mid fade-in).
-- `regen.sh` resolves `TRACE_FUNCS` to an absolute path; the toolkit runs from
-  its own directory and could not find a relative one.
 
 ### Changed (boot to Carbon)
 - The profiler samples about 35 times faster (raw addresses, named at the
   end; thread list refreshed once a second).
+
+### Fixed (boot to Carbon)
+- Bink video block artifacts (scattered white and coloured blocks in the menu
+  background and the intro). The lifter turned `movsx ebp, bp` into a
+  zero-extension; Bink's inverse DCT (`0x000CD7BC`) then read every negative
+  row-6 coefficient as a large positive one. Fixed in xboxrecomp's lifter
+  (`gpu-rastr`); the build re-runs `./regen.sh` by itself to pick it up.
+- `regen.sh` resolves `TRACE_FUNCS` to an absolute path; the toolkit runs from
+  its own directory and could not find a relative one.
