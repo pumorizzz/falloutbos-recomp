@@ -81,6 +81,12 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
   cannot grow. "Вступление Fallout 1" (key `BONUS_FO1_INTRO`) follows
   "Трейлер", and the choice hook writes the chosen movie's path into movie
   0's slot, which nothing else uses.
+- Two more movies nothing in the game names, in Extras the same way (Russian
+  set): "Ядерная Хроника" (`NuclearBlast.bik`, the same file as
+  `MainMenu.bik`: a minute of nuclear-test footage to music, after "Вступление
+  Fallout 1") and "Клип Skinlab 2" (`New_Bonus_SkinLab.bik`: the Skinlab clip
+  titled "Beneath the Surface", quieter, after "Клип Skinlab"). The added
+  movies are one table, `bonus_movies` in `recomp_manual.c`.
 - Russian credits: each heading and role, and the thanks, get a Russian line
   under the English one, like subtitles (in place of blank spacer lines; the
   Russian text in the dashboard title image `$$XTIMAGE`). The level-up prompt

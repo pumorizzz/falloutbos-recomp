@@ -217,12 +217,14 @@ def movie_subtitles():
 
 
 # Keys the original text does not have, for the port's own additions: the
-# Extras menu's "Trailer" and "Fallout 1 Intro" items (sub_000447D0 in
-# recomp_manual.c shows each only when gtext has its key, so the English set
-# keeps the original list).
+# Extras menu's items for the movies the game never plays (bonus_movies in
+# recomp_manual.c; each is shown only when gtext has its key, so the English
+# set keeps the original list).
 GTEXT_NEW_KEYS = {
     'BONUS_TRAILER': 'Трейлер',
     'BONUS_FO1_INTRO': 'Вступление Fallout 1',
+    'BONUS_NUKE': 'Ядерная Хроника',
+    'BONUS_SKINLAB2': 'Клип Skinlab 2',
 }
 
 

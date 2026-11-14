@@ -96,9 +96,9 @@ Switching back and forth needs no rebuild.
   the game's own font; songs are not. The cues are in `tools/ru/movies.tsv`
   (transcribed with Whisper), `apply` puts them into `gtext.sdb` of the Russian
   set, and the port draws them over the playing movie, so English plays
-  without them. The trailer and Fallout 1's intro, on the disc but never
-  played by the game, are added to Extras as "Трейлер" and "Вступление
-  Fallout 1" (Russian set only).
+  without them. The movies on the disc the game never plays are added to
+  Extras (Russian set only): "Трейлер", "Вступление Fallout 1", "Ядерная
+  Хроника" and "Клип Skinlab 2".
 - **Credits:** each heading and role (and the thanks) gets a Russian line under
   the English one, like subtitles; names, songs and labels stay as they are. The
   credits table in the XBE cannot grow, so the Russian lines take the place of

@@ -356,7 +356,9 @@ void sub_0003A250(void)
  * not even in the table, and the table cannot grow (the credits table follows
  * at 0xEE300). Movie 0's slot is used by nothing else, so the choice hook
  * writes the chosen movie's path into it: "Fallout 1 Intro" (key
- * BONUS_FO1_INTRO) plays through slot 0 as well.
+ * BONUS_FO1_INTRO) plays through slot 0 as well, and so do the other files
+ * nothing names: the nuclear-test reel (NuclearBlast.bik, the same file as
+ * MainMenu.bik) and the other Skinlab cut (New_Bonus_SkinLab.bik).
  * ------------------------------------------------------------------------- */
 extern void sub_0005B1B0(void);
 extern void sub_0005B1F0(void);
@@ -364,9 +366,16 @@ extern void sub_0005B280(void);
 extern void sub_0005B520(void);
 extern void sub_000729A0(void);
 
-#define BONUS_TRAILER_KEY 0x637370ACu             /* sub_hash("BONUS_TRAILER") */
-#define BONUS_FO1_KEY     0xC8441180u             /* sub_hash("BONUS_FO1_INTRO") */
 #define BONUS_SLOT0       0x000ED1F8u             /* movie 0's path, 0x100 bytes */
+
+/* The movies the port adds, each shown when gtext has its key. Every key
+ * falls through the handler's switch to "play [0xFA398]" (checked by hash). */
+static const struct { uint32_t key; const char *path; } bonus_movies[] = {
+    { 0x637370ACu, "d:\\resx\\FO_Trailer.bik" },  /* BONUS_TRAILER: the trailer */
+    { 0xC8441180u, "d:\\resx\\fo1_intro.bik" },   /* BONUS_FO1_INTRO: Fallout 1's intro */
+    { 0xEFC0C541u, "d:\\resx\\NuclearBlast.bik" },/* BONUS_NUKE: the nuclear-test reel */
+    { 0x09F77C95u, "d:\\resx\\New_Bonus_SkinLab.bik" }, /* BONUS_SKINLAB2: the other Skinlab cut */
+};
 
 static uint32_t bonus_this_call(void (*fn)(void), uint32_t self, const uint32_t *args, int n)
 {
@@ -386,8 +395,15 @@ static void bonus_add(uint32_t self, uint32_t key)
     bonus_this_call(sub_0005B1B0, self, args, 5);
 }
 
+/* An added movie's item, if gtext has its key. */
+static void bonus_add_movie(uint32_t self, int n)
+{
+    if (bonus_text(bonus_movies[n].key))
+        bonus_add(self, bonus_movies[n].key);
+}
+
 /* sub_000447D0, thiscall (1 argument, ret 4): the Extras list, as the
- * original, with the trailer item added. */
+ * original, with the added movies' items. */
 void sub_000447D0(void)
 {
     static const uint32_t level6[] = {
@@ -406,10 +422,9 @@ void sub_000447D0(void)
     MEM8(self + 0x62) = 4;
 
     bonus_add(self, 0xC2846013u);                 /* Fallout Intro */
-    if (bonus_text(BONUS_TRAILER_KEY))
-        bonus_add(self, BONUS_TRAILER_KEY);       /* Trailer */
-    if (bonus_text(BONUS_FO1_KEY))
-        bonus_add(self, BONUS_FO1_KEY);           /* Fallout 1 Intro */
+    bonus_add_movie(self, 0);                     /* Trailer */
+    bonus_add_movie(self, 1);                     /* Fallout 1 Intro */
+    bonus_add_movie(self, 2);                     /* Nuclear reel */
     bonus_add(self, 0xC2846012u);                 /* Credits */
     bonus_add(self, 0xC2846015u);                 /* Chapter 1 - Cain */
     bonus_add(self, 0xC2846014u);                 /* Chapter 1 - Cyrus */
@@ -419,9 +434,11 @@ void sub_000447D0(void)
         bonus_add(self, 0xC2846016u);             /* Chapter 2 */
     if (level >= 5)
         bonus_add(self, 0xC2846019u);             /* Chapter 3 */
-    if (level >= 6)
+    if (level >= 6) {
         for (i = 0; i < sizeof level6 / sizeof level6[0]; i++)
             bonus_add(self, level6[i]);           /* Mutant Transformation .. Skinlab */
+        bonus_add_movie(self, 3);                 /* the other Skinlab cut */
+    }
 
     /* The title: wide sprintf(this + 0x82, text 0x901D09A6, (float)[0x277300],
      * (float)[0x2771C8], 0, 0), then select with -1. */
@@ -455,17 +472,17 @@ static void bonus_slot0(const char *path)
  * default branch. */
 void sub_000449B0_enter(void)
 {
-    uint32_t self = g_ecx, eax = g_eax, edx = g_edx, args[2], item, key;
+    uint32_t self = g_ecx, eax = g_eax, edx = g_edx, args[2], item, key, i;
 
     args[0] = (uint32_t)(int32_t)(int8_t)MEM8(self + 0x60);
     args[1] = 0xFFFFFFFFu;
     item = bonus_this_call(sub_0005B280, self, args, 2);
     key = item ? MEM32(item + 0x70) : 0;
-    if (key == BONUS_TRAILER_KEY || key == BONUS_FO1_KEY) {
-        bonus_slot0(key == BONUS_TRAILER_KEY ? "d:\\resx\\FO_Trailer.bik"
-                                             : "d:\\resx\\fo1_intro.bik");
-        MEM32(0x000FA398u) = 0;
-    }
+    for (i = 0; i < sizeof bonus_movies / sizeof bonus_movies[0]; i++)
+        if (key == bonus_movies[i].key) {
+            bonus_slot0(bonus_movies[i].path);
+            MEM32(0x000FA398u) = 0;
+        }
     g_ecx = self; g_eax = eax; g_edx = edx;
 }
 
