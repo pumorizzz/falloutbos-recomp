@@ -5,7 +5,9 @@
  * Everything it sets is an environment variable the game already reads
  * (README, "Settings"): RECOMP_GPU_RASTER_SCALE (the resolution the GPU renders
  * at, a multiple of the game's 640x480), RECOMP_FB_SIZE and
- * RECOMP_FB_FULLSCREEN (the picture), RECOMP_GPU_RASTER_MSAA, RECOMP_FPS_LIMIT
+ * RECOMP_FB_FULLSCREEN (the picture), RECOMP_GPU_RASTER_SSAA (supersampling:
+ * draws n times larger each way and averages back down),
+ * RECOMP_GPU_RASTER_MSAA, RECOMP_FPS_LIMIT
  * (the frame-rate cap). The language copies a set of the game's text files
  * into place (set_language). The choice is
  * kept in bin\launcher.ini. Plain Win32, no resources: built with the game
@@ -21,14 +23,14 @@ typedef struct {
     const char *value;
 } Choice;
 
-/* What the GPU renders at. The game's frame is 640x480; with the 16:9 patch
- * it is anamorphic, so 4x3 is a 2560x1440 16:9 picture pixel for pixel. */
+/* The game's frame is 640x480; the GPU draws it a whole number of times larger
+ * (RECOMP_GPU_RASTER_SCALE; the variable still takes <x>x<y>, the list keeps
+ * them square). */
 static const Choice k_render[] = {
-    { "640 x 480    (the game's own, 1x)", "1" },
-    { "1280 x 960   (2x)", "2" },
-    { "1920 x 1440  (3x)", "3" },
-    { "2560 x 1440  (4x3, sharpest at 1440p)", "4x3" },
-    { "2560 x 1920  (4x)", "4" },
+    { "1x - 640 x 480 (the game's own)", "1" },
+    { "2x - 1280 x 960", "2" },
+    { "3x - 1920 x 1440", "3" },
+    { "4x - 2560 x 1920", "4" },
 };
 static const Choice k_output[] = {
     { "1280 x 720", "1280x720" },
@@ -43,6 +45,13 @@ static const Choice k_aa[] = {
     { "MSAA 4x", "4" },
     { "MSAA 8x", "8" },
 };
+static const Choice k_ssaa[] = {
+    { "Off", "1" },
+    { "SSAA 2x", "2" },
+    { "SSAA 3x", "3" },
+    { "SSAA 4x", "4" },
+};
+#define MAX_SIDE 8                      /* the toolkit's limit on scale x SSAA a side */
 /* RECOMP_FPS_LIMIT: the flip waits for the next 1/n s, standing in for the
  * TV's vblank. No "unlimited": menus and loading screens would run at
  * hundreds of fps and take a held button as several presses. */
@@ -60,11 +69,11 @@ static const Choice k_fps[] = {
 static const char *const k_sdb[] = { "gtext.sdb", "global.sdb", "deftexte.sdb" };
 static const char *const k_lang[] = { "en", "ru" };
 
-enum { ID_RENDER = 100, ID_OUTPUT, ID_AA, ID_FPS, ID_FULL, ID_LANG, ID_PLAY, ID_QUIT };
+enum { ID_RENDER = 100, ID_OUTPUT, ID_AA, ID_FPS, ID_FULL, ID_LANG, ID_PLAY, ID_QUIT, ID_SSAA };
 
 static char s_root[MAX_PATH];           /* the repository: bin\.. */
 static char s_ini[MAX_PATH];
-static HWND s_render, s_output, s_aa, s_fps, s_full, s_lang;
+static HWND s_render, s_output, s_aa, s_fps, s_full, s_lang, s_ssaa, s_hint;
 static HFONT s_font;
 
 static int find_value(const Choice *c, int n, const char *v, int fallback)
@@ -102,10 +111,38 @@ static int selected(HWND h)
     return i < 0 ? 0 : i;
 }
 
+/* Scale x SSAA is at most MAX_SIDE a side: a larger SSAA drops to what fits. */
+static void clamp_ssaa(void)
+{
+    int s = atoi(k_render[selected(s_render)].value), i = selected(s_ssaa);
+    while (i > 0 && s * atoi(k_ssaa[i].value) > MAX_SIDE)
+        i--;
+    SendMessageA(s_ssaa, CB_SETCURSEL, (WPARAM)i, 0);
+}
+
+static void update_hint(void)
+{
+    int s = atoi(k_render[selected(s_render)].value);
+    int n = atoi(k_ssaa[selected(s_ssaa)].value);
+    char t[200];
+
+    if (n > 1)
+        snprintf(t, sizeof t, "Drawn at %d x %d, averaged to %d x %d.\n"
+                              "SSAA and MSAA cost GPU time and video memory.",
+                 640 * s * n, 480 * s * n, 640 * s, 480 * s);
+    else
+        snprintf(t, sizeof t, "The GPU draws %d x %d.\n"
+                              "SSAA and MSAA cost GPU time and video memory;\n"
+                              "3x with MSAA 4x holds 60 fps on a fast card.",
+                 640 * s, 480 * s);
+    SetWindowTextA(s_hint, t);
+}
+
 static void save(void)
 {
     WritePrivateProfileStringA("launcher", "render", k_render[selected(s_render)].value, s_ini);
     WritePrivateProfileStringA("launcher", "output", k_output[selected(s_output)].value, s_ini);
+    WritePrivateProfileStringA("launcher", "ssaa", k_ssaa[selected(s_ssaa)].value, s_ini);
     WritePrivateProfileStringA("launcher", "msaa", k_aa[selected(s_aa)].value, s_ini);
     WritePrivateProfileStringA("launcher", "fps", k_fps[selected(s_fps)].value, s_ini);
     WritePrivateProfileStringA("launcher", "fullscreen",
@@ -416,6 +453,7 @@ static int play(HWND owner)
         SetEnvironmentVariableA("RECOMP_GPU_RASTER", "1");
     SetEnvironmentVariableA("RECOMP_PAD_RECORD", "saves\\pad_path.txt");
     SetEnvironmentVariableA("RECOMP_GPU_RASTER_SCALE", k_render[selected(s_render)].value);
+    SetEnvironmentVariableA("RECOMP_GPU_RASTER_SSAA", k_ssaa[selected(s_ssaa)].value);
     SetEnvironmentVariableA("RECOMP_GPU_RASTER_MSAA", k_aa[selected(s_aa)].value);
     SetEnvironmentVariableA("RECOMP_FB_SIZE", k_output[selected(s_output)].value);
     SetEnvironmentVariableA("RECOMP_FPS_LIMIT", k_fps[selected(s_fps)].value);
@@ -458,8 +496,11 @@ static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
     case WM_CREATE: {
         char v[32];
         int y = 16;
-        make("STATIC", "Render resolution (the GPU draws at):", 0, 16, y, 300, 18, h, 0);
+        make("STATIC", "Render resolution:", 0, 16, y, 300, 18, h, 0);
         GetPrivateProfileStringA("launcher", "render", "3", v, sizeof v, s_ini);
+        /* 4x3 left the list: the nearest square scale. */
+        if (strcmp(v, "4x3") == 0)
+            strcpy(v, "4");
         s_render = combo(h, ID_RENDER, 16, y + 20, k_render, COUNT(k_render),
                          find_value(k_render, COUNT(k_render), v, 2));
         y += 56;
@@ -472,7 +513,12 @@ static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
         if (GetPrivateProfileIntA("launcher", "fullscreen", 1, s_ini))
             SendMessageA(s_full, BM_SETCHECK, BST_CHECKED, 0);
         y += 84;
-        make("STATIC", "Anti-aliasing:", 0, 16, y, 300, 18, h, 0);
+        make("STATIC", "Supersampling (SSAA):", 0, 16, y, 300, 18, h, 0);
+        GetPrivateProfileStringA("launcher", "ssaa", "1", v, sizeof v, s_ini);
+        s_ssaa = combo(h, ID_SSAA, 16, y + 20, k_ssaa, COUNT(k_ssaa),
+                       find_value(k_ssaa, COUNT(k_ssaa), v, 0));
+        y += 56;
+        make("STATIC", "Multisampling (MSAA):", 0, 16, y, 300, 18, h, 0);
         GetPrivateProfileStringA("launcher", "msaa", "4", v, sizeof v, s_ini);
         s_aa = combo(h, ID_AA, 16, y + 20, k_aa, COUNT(k_aa),
                      find_value(k_aa, COUNT(k_aa), v, 2));
@@ -496,12 +542,12 @@ static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
         GetPrivateProfileStringA("launcher", "language", "en", v, sizeof v, s_ini);
         SendMessageW(s_lang, CB_SETCURSEL, strcmp(v, "ru") == 0 ? 1 : 0, 0);
         y += 60;
-        make("STATIC", "Higher render resolution and MSAA cost GPU time;\n"
-                       "3x with MSAA 4x holds 60 fps on a fast card.",
-             0, 16, y, 300, 34, h, 0);
-        y += 44;
+        s_hint = make("STATIC", "", 0, 16, y, 300, 50, h, 0);
+        y += 60;
         make("BUTTON", "Play", BS_DEFPUSHBUTTON | WS_TABSTOP, 136, y, 86, 28, h, ID_PLAY);
         make("BUTTON", "Quit", BS_PUSHBUTTON | WS_TABSTOP, 230, y, 86, 28, h, ID_QUIT);
+        clamp_ssaa();
+        update_hint();
         return 0;
     }
     case WM_COMMAND:
@@ -511,6 +557,10 @@ static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
                 DestroyWindow(h);
         } else if (LOWORD(w) == ID_QUIT) {
             DestroyWindow(h);
+        } else if ((LOWORD(w) == ID_RENDER || LOWORD(w) == ID_SSAA)
+                   && HIWORD(w) == CBN_SELCHANGE) {
+            clamp_ssaa();
+            update_hint();
         }
         return 0;
     case WM_CTLCOLORSTATIC:
@@ -527,7 +577,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 {
     WNDCLASSA wc;
     NONCLIENTMETRICSA ncm;
-    RECT r = { 0, 0, 332, 464 };
+    RECT r = { 0, 0, 332, 488 };
     MSG msg;
     HWND h;
     char *slash;

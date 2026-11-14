@@ -10,7 +10,7 @@
   before the vertex programs ran on several threads); the CPU rasteriser about
   17. What it fixed on the way is in the README, "What this fork fixed".
 - 16:9 (Nemesis2000's patch mapped onto the USA image), a 2560x1440 picture
-  with borderless full screen, and an internal resolution with MSAA
+  with borderless full screen, and an internal resolution with MSAA and SSAA
   (3x3 + 4x by default): edges and the scene drawn at 1920x1440.
 
 ## Next

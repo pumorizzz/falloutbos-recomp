@@ -25,6 +25,12 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
 - Internal resolution and MSAA on the GPU path (`RECOMP_GPU_RASTER_SCALE`,
   `RECOMP_GPU_RASTER_MSAA`): targets and depth drawn N times larger with
   multisampling, read back to guest RAM averaged; `Play.cmd` uses 3x3 + 4x.
+- SSAA on the GPU path (`RECOMP_GPU_RASTER_SSAA`, toolkit): drawn at scale x n,
+  each n x n block averaged down to the chosen scale before it is shown.
+  Launcher: render resolution 1x-4x (640x480 to 2560x1920; 4x3 left the list,
+  the variable still takes it, an old `render=4x3` opens as 4x), SSAA
+  (off/2x/3x/4x) and MSAA as separate choices, kept as `ssaa` in
+  `bin\launcher.ini`.
 - Russian: `tools/russian.py apply` translates `gtext.sdb` (dialogue, quests,
   menus, hints), the names in `global.sdb`/`deftexte.sdb` and in each level's own
   `.sdb`, and the inventory labels and the loading screen's `Loading...` inside

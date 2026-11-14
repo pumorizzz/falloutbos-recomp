@@ -22,9 +22,9 @@ game shipped on Xbox and PS2 only; there was never a PC version.
 | | |
 |---|---|
 | **Direct3D 11 rendering** | The NV2A's work is drawn on the GPU, register combiners in one ubershader, presented from a swapchain. Capped at 60 fps; uncapped, Ruby's bar runs at about 130 fps (RTX 3080 Ti). |
-| **16:9, up to 4K** | Nemesis2000's widescreen patch mapped onto the USA disc; the GPU renders at up to 4x the game's resolution with up to 8x MSAA; borderless full screen on F11. |
+| **16:9, up to 4K** | Nemesis2000's widescreen patch mapped onto the USA disc; the GPU renders at up to 4x the game's resolution with SSAA up to 4x and MSAA up to 8x; borderless full screen on F11. |
 | **Russian translation** | Every line of dialogue, quest, menu and hint, item names, and Cyrillic drawn into the game's own fonts. English or Russian is picked in the launcher. |
-| **Launcher** | `bin\FalloutLauncher.exe`: resolution, picture size, full screen, anti-aliasing, frame-rate limit, language. |
+| **Launcher** | `bin\FalloutLauncher.exe`: resolution, SSAA, MSAA, picture size, full screen, frame-rate limit, language. |
 | **Pad or keyboard** | XInput pads (Xbox 360/One) through the game's own USB stack; full keyboard mapping. |
 | **Checked** | Frame by frame against a PS2 playthrough; `boot_check` 8/8 from power-on to Carbon; 0 faults, 0 unresolved calls. |
 
@@ -193,8 +193,9 @@ environment.
 | Variable | Effect |
 |---|---|
 | `RECOMP_GPU_RASTER=1` \| `warp` \| `compare` \| `0` | draw on the GPU (WARP if there is no hardware adapter), on WARP, on both paths with a difference report per flip, or on the CPU |
-| `RECOMP_GPU_RASTER_SCALE=<n>` \| `<x>x<y>` | render resolution as a multiple of 640x480 (1-8 each way); `4x3` is 2560x1440 |
-| `RECOMP_GPU_RASTER_MSAA=<n>` | 2, 4 or 8 samples |
+| `RECOMP_GPU_RASTER_SCALE=<n>` \| `<x>x<y>` | render resolution as a multiple of 640x480 (1-8 each way; the launcher offers 1x-4x); `4x3` is still taken (2560x1440) |
+| `RECOMP_GPU_RASTER_SSAA=<n>` | supersampling: the GPU draws n times the render resolution each way (2-4) and averages each n x n block down to it before the picture is scaled to the window; scale x n is at most 8 a side (n is lowered otherwise) |
+| `RECOMP_GPU_RASTER_MSAA=<n>` | 2, 4 or 8 samples, with or without SSAA |
 | `RECOMP_FB_SIZE=<w>x<h>` | the picture's size; the window fits it to the screen |
 | `RECOMP_FB_FULLSCREEN=1` | start in borderless full screen (F11 toggles) |
 | `RECOMP_FB_ASPECT=<n>:<d>` | display aspect; `16:9` by itself for a widescreen-patched XBE |
@@ -216,7 +217,7 @@ The toolkit fork's `gpu-rastr` branch, each change with a test in
 `deps/xboxrecomp/tests`, plus the port itself.
 
 **Rendering:** the Direct3D 11 back end; render targets sampled as textures
-without readback; internal resolution and MSAA; device loss falls back to the
+without readback; internal resolution, MSAA and SSAA; device loss falls back to the
 CPU rasteriser.
 
 **Graphics, on both paths:**
