@@ -714,6 +714,29 @@ def xbe_text_earlier(va, room):
     return b + bytes(room - len(b))
 
 
+_earlier_cache = {}
+
+
+def xbe_earlier(xbe, va, n):
+    """Russian an earlier apply left at a string site: XBE_TEXT_EARLIER, or
+    what default.xbe.ru holds there. Apply rewrites .ru every time, so after
+    an edit to XBE_TEXT, CREDITS_RU or credits_layout the old Russian in
+    default.xbe is still taken as this tool's own, not as another disc."""
+    out = [xbe_text_earlier(va, n)]
+    ru = xbe + '.ru'
+    if os.path.exists(ru):
+        st = os.stat(ru)
+        key = (ru, st.st_mtime_ns, st.st_size)
+        if key not in _earlier_cache:
+            _earlier_cache.clear()
+            _earlier_cache[key] = read_file(ru)
+        d = _earlier_cache[key]
+        o = xbe_offset(d, va)
+        if o is not None:
+            out.append(bytes(d[o:o + n]))
+    return [b for b in out if b is not None]
+
+
 def xbe_text_sites():
     out = []
     for va, room, en, ru in XBE_TEXT:
@@ -887,7 +910,7 @@ def xbe_patch(xbe, to_new, dry=False):
         want, other = (new, orig) if to_new else (orig, new)
         if here == want:
             continue
-        if here != other and (is_code or here != xbe_text_earlier(va, len(orig))):
+        if here != other and (is_code or here not in xbe_earlier(xbe, va, len(orig))):
             print(f'russian: {xbe} at {va:#010x} is neither the original nor the patch; left as it is')
             return -1
     for (va, orig, new), is_code in sites:
@@ -992,7 +1015,7 @@ def run(argv):
         strings = xbe_string_sites(xbe)
         for va, orig, new in XBE_SITES + strings:
             o = xbe_offset(d, va)
-            if o is None or d[o:o + len(orig)] not in (orig, new, xbe_text_earlier(va, len(orig))):
+            if o is None or d[o:o + len(orig)] not in [orig, new] + xbe_earlier(xbe, va, len(orig)):
                 print(f'russian: {xbe} at {va:#010x} is neither the original nor the patch; '
                       'not the image these fixes are for')
                 return 1
@@ -1020,9 +1043,10 @@ def run(argv):
     if cmd == 'revert':
         n = fonts_revert(resx)                 # first: it refuses a damaged backup
         x = xbe_patch(xbe, False)
-        for s in ('.en', '.ru'):
-            if os.path.exists(xbe + s):
-                os.remove(xbe + s)
+        if x >= 0:                             # .en is the only source of the English credits
+            for s in ('.en', '.ru'):
+                if os.path.exists(xbe + s):
+                    os.remove(xbe + s)
         n += max(x, 0)
         damaged = []
         for p in [os.path.join(resx, name) for name in SDBS] + level_sdbs(resx):
@@ -1043,6 +1067,9 @@ def run(argv):
                   'restore each .sdb from the disc and delete its .en:')
             for d in damaged:
                 print('  ' + d)
+            return 1
+        if x < 0:
+            print(f'russian: {xbe} left as it is, {os.path.basename(xbe)}.en and .ru kept')
             return 1
         print('russian: back to English' if n else 'russian: already English')
         return 3 if n else 0

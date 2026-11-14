@@ -102,6 +102,8 @@ fi
 # Russian text (without them the inventory's labels are cut to "...").
 $PY "$FBOS/tools/russian.py" code-mark "$FBOS/src/game/recomp/gen/recomp_fbos_mark.c" || exit 1
 $PY "$FBOS/tools/aspect.py" table "$FBOS/src/game/recomp/gen/recomp_fbos_aspect.c" || exit 1
+# What this C took from recomp_manual.c: CMake regenerates when it changes.
+$PY "$FBOS/tools/manual_scan.py" "$RECOMP" > "$FBOS/src/game/recomp/gen/.manual_scan" || exit 1
 # recomp leaves unchanged files alone, so their times say nothing; this one
 # marks when gen/ last matched the toolkit (src/game/CMakeLists.txt).
 touch "$FBOS/src/game/recomp/gen/.regen_stamp"

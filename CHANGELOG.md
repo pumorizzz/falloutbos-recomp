@@ -234,6 +234,16 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
 - A fresh clone with no `src/game/recomp/gen/` built nothing and failed at the
   link: CMake now runs `regen.sh` when `game/default.xbe` is there, and stops
   with a plain message when it is not.
+- After an edit to the Russian credits, `russian.py apply` took the credits an
+  earlier apply had written for another disc's and refused, and `revert` then
+  deleted `default.xbe.en`, the only copy of the English credits, while saying
+  "back to English". Both now take what `default.xbe.ru` holds as their own,
+  and `revert` on an image it does not know keeps `.en`/`.ru` and exits 1.
+- The build did not regenerate when `recomp_manual.c` replaced, hooked or named
+  other functions, so a pull with a new replacement failed to link (LNK2005).
+  `regen.sh` now records what the generator took from it (`tools/manual_scan.py`,
+  `gen/.manual_scan`), and CMake regenerates when that changes; an edit inside a
+  function's body costs no regen.
 
 ### Added (boot to Carbon, 2026-10-17 to 2026-10-18)
 - Project from the xboxrecomp new-game template and the Half-Life 2 port's

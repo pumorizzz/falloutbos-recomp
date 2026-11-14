@@ -23,6 +23,13 @@ if(FBOS_AUTO_REGEN)
     # the port's own codegen: aspect.py lifts widescreen.py's sites as table reads
     list(APPEND _codegen_inputs "${_fbos_root}/tools/aspect.py" "${_fbos_root}/tools/widescreen.py")
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${_codegen_inputs})
+    # recomp_manual.c is a generator input too (--exclude-manual), but only
+    # its set of replacements, _enter hooks and named sub_ matters: compared
+    # with gen/.manual_scan below, so an edit inside a body costs no regen.
+    set(_manual "${CMAKE_CURRENT_SOURCE_DIR}/recomp/recomp_manual.c")
+    set(_manual_snap "${CMAKE_CURRENT_SOURCE_DIR}/recomp/gen/.manual_scan")
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+        "${_manual}" "${_fbos_root}/tools/manual_scan.py")
     set(_stale "")
     set(_no_gen OFF)
     if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/recomp/gen/recomp_funcs.h"
@@ -40,6 +47,27 @@ if(FBOS_AUTO_REGEN)
                 break()
             endif()
         endforeach()
+        if(NOT _stale)
+            find_program(FBOS_PY py)
+            if(NOT EXISTS "${_manual_snap}")
+                set(_stale "it has no gen/.manual_scan yet")
+            elseif(NOT FBOS_PY)
+                message(WARNING "no py launcher: cannot tell whether recomp_manual.c still matches gen/")
+            else()
+                execute_process(
+                    COMMAND "${FBOS_PY}" -3 "${_fbos_root}/tools/manual_scan.py" "${XBOXRECOMP_DIR}"
+                    WORKING_DIRECTORY "${_fbos_root}"
+                    OUTPUT_VARIABLE _scan_now RESULT_VARIABLE _scan_status)
+                file(READ "${_manual_snap}" _scan_then)
+                string(REPLACE "\r" "" _scan_now "${_scan_now}")
+                string(REPLACE "\r" "" _scan_then "${_scan_then}")
+                if(NOT _scan_status EQUAL 0)
+                    message(FATAL_ERROR "tools/manual_scan.py failed (${_scan_status})")
+                elseif(NOT _scan_now STREQUAL _scan_then)
+                    set(_stale "recomp_manual.c replaces, hooks or names other functions than gen/ was made with")
+                endif()
+            endif()
+        endif()
     endif()
     if(_no_gen AND NOT EXISTS "${_fbos_root}/game/default.xbe")
         message(FATAL_ERROR "src/game/recomp/gen/ is empty and there is no game/default.xbe "
