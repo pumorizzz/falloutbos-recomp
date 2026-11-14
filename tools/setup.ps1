@@ -130,26 +130,12 @@ if (-not (Test-Path (Join-Path $Root 'game\default.xbe'))) {
     Run 'unpacking your disc into game\' { Push-Location $Toolkit; py -3 -m tools.xiso unpack $path -o (Join-Path $Root 'game'); $c = $LASTEXITCODE; Pop-Location; $global:LASTEXITCODE = $c }
 } else { Say "Disc already unpacked into game\" }
 
-# ---- 3b. widescreen ------------------------------------------------------------
-# Nemesis2000's 16:9 patch, mapped onto the USA image (tools\widescreen.py).
-# For 4:3: "py -3 tools\widescreen.py revert", then ./regen.sh --disasm and
-# cmake --build build-msvc --config Release by hand. Not Setup again: this
-# step would put 16:9 back.
-# 'Continue' for the call, as in Run: under 'Stop' a traceback on stderr
-# would end the script here with nothing said.
-$prev = $ErrorActionPreference
-$ErrorActionPreference = 'Continue'
-$wsOut = @(py -3 (Join-Path $Root 'tools\widescreen.py') apply 2>&1 | ForEach-Object { "$_" })
-$wsCode = $LASTEXITCODE
-$ErrorActionPreference = $prev
-$wsOut | Out-File $Log -Append -Encoding utf8
-$WidescreenChanged = $false
-if ($wsCode -eq 3) { Say "Patched game\default.xbe for 16:9"; $WidescreenChanged = $true }
-elseif ($wsCode -eq 0) { Say "game\default.xbe is already 16:9" }
-else { Say "16:9 patch not applied: $($wsOut | Select-Object -Last 1)" }
+# No widescreen step: 16:9 or 4:3 is picked at start (FBOS_ASPECT, the
+# launcher's Aspect), and the C is generated the same from a patched or an
+# unpatched disc (tools\aspect.py), so the disc is left as it is.
 
 # ---- 4. generate the C ---------------------------------------------------------
-if ($WidescreenChanged -or -not (Test-Path (Join-Path $Root 'src\game\recomp\gen\recomp_funcs.h'))) {
+if (-not (Test-Path (Join-Path $Root 'src\game\recomp\gen\recomp_funcs.h'))) {
     $env:RECOMP = $Toolkit
     Run 'generating C from your disc (about 3 minutes)' { & $bash ./regen.sh --disasm }
 } else { Say "Generated C already present (delete src\game\recomp\gen to redo)" }
@@ -157,7 +143,7 @@ if ($WidescreenChanged -or -not (Test-Path (Join-Path $Root 'src\game\recomp\gen
 # ---- 5. build ------------------------------------------------------------------
 # A toolkit update needs a rebuild; the build itself regenerates gen/ when the
 # toolkit's codegen changed (src/game/CMakeLists.txt).
-if ($ToolkitUpdated -or $WidescreenChanged -or -not (Test-Path (Join-Path $Root 'bin\fobos.exe'))) {
+if ($ToolkitUpdated -or -not (Test-Path (Join-Path $Root 'bin\fobos.exe'))) {
     Run 'configuring the build' { cmake -S . -B build-msvc -A x64 "-DXBOXRECOMP_DIR=$Toolkit" }
     Run 'building (several minutes; your machine will be busy)' { cmake --build build-msvc --config Release }
 } else { Say "Already built: bin\fobos.exe" }

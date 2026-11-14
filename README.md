@@ -47,8 +47,8 @@ You need your own **Fallout: Brotherhood of Steel (USA)** disc image (`.iso`).
    or `git clone`) and unpack it.
 2. **Run `Setup.cmd`.** It checks for Python, Git, CMake and the Visual Studio C++
    build tools and **asks before installing** anything missing. Then it finds your
-   disc image (or asks for it), unpacks it, applies the 16:9 patch, generates the C
-   and builds. About 10-20 minutes the first time, most of it the build. If it stops,
+   disc image (or asks for it), unpacks it, generates the C
+   and builds (16:9 or 4:3 is picked later, in the launcher). About 10-20 minutes the first time, most of it the build. If it stops,
    it says why in one sentence (details in `setup.log`); run it again to resume.
 3. **Run `bin\FalloutLauncher.exe`**, pick the settings, press **Play**. The choice is
    kept in `bin\launcher.ini`, and the game's messages go to `fobos.log`.
@@ -163,9 +163,8 @@ git clone https://github.com/pumorizzz/falloutbos-recomp falloutbos
 cd falloutbos
 git clone --branch gpu-rastr https://github.com/pumorizzz/xboxrecomp deps/xboxrecomp
 
-# 2. your disc (the 16:9 patch is optional: the C is generated with its sites at 4:3 either way, and FBOS_ASPECT picks 16:9 or 4:3 at start)
+# 2. your disc, as it is (16:9 or 4:3 is picked at start: FBOS_ASPECT, the launcher's Aspect)
 (cd deps/xboxrecomp && py -3 -m tools.xiso unpack "/path/to/Fallout - Brotherhood of Steel (USA).iso" -o ../../game)
-py -3 tools/widescreen.py apply
 
 # 3. generate the C (about 3 minutes)
 RECOMP=deps/xboxrecomp ./regen.sh --disasm
@@ -177,11 +176,13 @@ cmake --build build-msvc --config Release
 
 Both XBE patches (`widescreen.py`, `russian.py`) check every site against its
 original bytes and refuse another disc revision. After `russian.py`, regenerate and
-build again. `widescreen.py` no longer changes the generated C: `tools/aspect.py`
-generates it from a copy with the widescreen sites at 4:3 and reads them from a
-table filled at start. Each touches only its own sites: `widescreen.py revert` puts back
-the 4:3 bytes and leaves the Russian fixes, and the launcher's language switch
-changes only the XBE's strings, so either order works.
+build again. The port does not need `widescreen.py apply`: `tools/aspect.py`
+generates the C from a copy with the widescreen sites at 4:3 and reads them from a
+table filled at start, so a patched or an unpatched disc gives the same C; the patch
+stays for a `default.xbe` meant for an Xbox or an emulator. Each touches only its own
+sites: `widescreen.py revert` puts back the 4:3 bytes and leaves the Russian fixes,
+and the launcher's language switch changes only the XBE's strings, so either order
+works.
 
 `cmake --build` re-runs `./regen.sh` by itself when the toolkit's code generator is
 newer than the last regen, and runs it on a fresh clone with no generated C yet

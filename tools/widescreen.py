@@ -6,8 +6,13 @@
 Nemesis2000's widescreen patch (Jay's Magic Patcher, "Fallout - Brotherhood
 of Steel {Widescreen} (PAL) [Nemesis2000].JMP") made for the USA image. The
 game keeps drawing into its 640x480 buffer, as on an Xbox set to widescreen:
-the picture is anamorphic, and the framebuffer window shows it 16:9 (the port
-reads the patched aspect back at start-up).
+the picture is anamorphic, and the framebuffer window shows it 16:9.
+
+The port no longer needs the patch on the disc: regen.sh generates the C from
+a copy with these sites at 4:3, tools/aspect.py turns them into reads of a
+table, and FBOS_ASPECT (the launcher's Aspect) picks 16:9 or 4:3 at start.
+SITES below is that list. Setup does not apply the patch; `apply` stays for a
+default.xbe meant for an Xbox or an emulator.
 
 The PAL patch is a list of find/replace byte strings. Mapped by meaning onto
 the USA build:
@@ -28,9 +33,9 @@ Each site is checked against its original bytes before anything is written,
 so another revision of the disc is refused rather than damaged. `apply` keeps
 a copy of the file as it was as default.xbe.4x3 (for safekeeping; nothing
 reads it); `revert` writes the original bytes back into these sites only, so
-other patches (tools/russian.py) stay. The generated C has
-to be redone afterwards (`./regen.sh --disasm`, then build): the patch is in
-the code. Exit status: 0 nothing to do, 3 the file changed, 1 not this image.
+other patches (tools/russian.py) stay. Neither changes the port's generated
+C, so no regen is needed. Exit status: 0 nothing to do, 3 the file changed,
+1 not this image.
 """
 import os
 import shutil

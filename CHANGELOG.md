@@ -19,7 +19,9 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
 - 16:9: `tools/widescreen.py` maps Nemesis2000's PAL widescreen patch onto the
   USA image (11 sites, each checked; `revert` restores 4:3). The game draws
   16:9 by default (`FBOS_ASPECT`, see Aspect at start below); the XBE patch no
-  longer changes the generated C. The window shows the frame at 16:9 by itself.
+  longer changes the generated C, and `Setup.cmd` no longer applies it (the
+  disc is left as it is; the patch stays for an Xbox or an emulator). The
+  window shows the frame at 16:9 by itself.
 - The picture opens at 2560x1440 (`RECOMP_FB_SIZE`, fitted to the screen),
   filtered into the display aspect with bars (`RECOMP_FB_ASPECT`); F11 for
   borderless full screen.
