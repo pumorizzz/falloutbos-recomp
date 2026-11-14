@@ -446,7 +446,7 @@ static int set_xbe_strings(HWND owner, const char *lang)
                      "tools\\russian.py, and the Russian text would come out cut to \"...\".\n\n"
                      "Open Git Bash in %s (right-click the folder, \"Open Git Bash here\"; "
                      "it comes with Git for Windows, which Setup installed) and run:\n\n"
-                     "py -3 tools/russian.py apply\n./regen.sh\n"
+                     "py -3 tools/russian.py apply\n./regen.sh --disasm\n"
                      "cmake --build build-msvc --config Release", s_root);
             MessageBoxA(owner, msg, "Fallout: Brotherhood of Steel", MB_ICONERROR);
             goto out;
@@ -698,12 +698,17 @@ static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
         update_hint();
         return 0;
     }
-    case WM_COMMAND:
-        if (LOWORD(w) == ID_PLAY) {
+    case WM_COMMAND: {
+        /* IsDialogMessage turns Enter and Esc into IDOK and IDCANCEL (no
+         * dialog procedure answers DM_GETDEFID here): Play and Quit. */
+        WORD id = LOWORD(w);
+        if (id == IDOK) id = ID_PLAY;
+        else if (id == IDCANCEL) id = ID_QUIT;
+        if (id == ID_PLAY) {
             save();
             if (set_language(h) && play(h))
                 DestroyWindow(h);
-        } else if (LOWORD(w) == ID_QUIT) {
+        } else if (id == ID_QUIT) {
             DestroyWindow(h);
         } else if (LOWORD(w) == ID_ASPECT && HIWORD(w) == CBN_SELCHANGE) {
             set_render_choices(aspect_value(), render_index());
@@ -722,6 +727,7 @@ static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
             update_hint();
         }
         return 0;
+    }
     case WM_CTLCOLORSTATIC:
         SetBkMode((HDC)w, TRANSPARENT);
         return (LRESULT)GetSysColorBrush(COLOR_BTNFACE);
