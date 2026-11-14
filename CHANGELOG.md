@@ -210,6 +210,14 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
   only, Armpit's last joke, the Necropolis pun and the hero's swearing at Rhombus back,
   the "Use Stimpak" tutorial title, a grammar slip), and the 15 quest
   "ПОДСКАЗКА:" hints start with a capital as the original's "HINT:" does.
+- The rest of the Russian text read against the English with no video (1440
+  strings no walkthrough showed: other dialogue branches, barks, shop lines,
+  labels, quest texts): 26 lines fixed. "Bowling for Brahmin" is "Боулинг
+  для Браминов" (the film reference, brahmin as the pins), the Star Wars
+  "not the door you're looking for" and "I'm your Huckleberry" are back,
+  Jesse's "sons-of-WHORES" joke about Ruby works again, five lines to or from
+  the hero no longer assume a man, "Вставьте %u." no longer puts the device's
+  name in the wrong case, and a few prompts take Title Case.
 - The launcher set the Russian XBE strings into a `default.xbe` without
   `russian.py`'s code fixes (the disc unpacked again, the `.en`/`.ru` set left),
   and the inventory's labels came out cut to "..."; it now refuses and asks for
