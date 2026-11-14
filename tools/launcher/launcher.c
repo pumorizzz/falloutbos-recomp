@@ -25,15 +25,19 @@ typedef struct {
 
 /* The game's frame is 640x480; the GPU draws it a whole number of times larger
  * (RECOMP_GPU_RASTER_SCALE). The list keeps them square, but for an XBE
- * patched to 16:9 (tools/widescreen.py) the frame is anamorphic and 4x3 is a
- * 2560x1440 picture pixel for pixel -- the last entry, shown only then. */
+ * patched to 16:9 (tools/widescreen.py) the frame is anamorphic: 3x2 is 1920
+ * wide like a 1080p screen (1080 is 2.25 x 480, not a whole multiple) and 4x3
+ * is a 2560x1440 picture pixel for pixel -- the last K_WIDE_ONLY entries,
+ * shown only then. */
 static const Choice k_render[] = {
     { "1x - 640 x 480 (the game's own)", "1" },
     { "2x - 1280 x 960", "2" },
     { "3x - 1920 x 1440", "3" },
     { "4x - 2560 x 1920", "4" },
+    { "3x2 - 1920 x 960 (16:9, 1080p width)", "3x2" },
     { "4x3 - 2560 x 1440 (16:9 pixel for pixel)", "4x3" },
 };
+#define K_WIDE_ONLY 2
 static const Choice k_output[] = {
     { "1280 x 720", "1280x720" },
     { "1600 x 900", "1600x900" },
@@ -564,10 +568,14 @@ static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
         int y = 16;
         make("STATIC", "Render resolution:", 0, 16, y, 300, 18, h, 0);
         GetPrivateProfileStringA("launcher", "render", "3", v, sizeof v, s_ini);
-        s_render_n = xbe_widescreen() ? COUNT(k_render) : COUNT(k_render) - 1;
-        /* 4x3 without 16:9: the nearest square scale. */
-        if (strcmp(v, "4x3") == 0 && s_render_n < COUNT(k_render))
-            strcpy(v, "4");
+        s_render_n = xbe_widescreen() ? COUNT(k_render) : COUNT(k_render) - K_WIDE_ONLY;
+        /* 3x2 and 4x3 without 16:9: the square scale of the same width. */
+        if (s_render_n < COUNT(k_render)) {
+            if (strcmp(v, "4x3") == 0)
+                strcpy(v, "4");
+            else if (strcmp(v, "3x2") == 0)
+                strcpy(v, "3");
+        }
         s_render = combo(h, ID_RENDER, 16, y + 20, k_render, s_render_n,
                          find_value(k_render, s_render_n, v, 2));
         y += 56;
