@@ -44,6 +44,13 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
   unpatched XBE give the same C. Launcher: Aspect (16:9 / 4:3), kept as
   `aspect` in `bin\launcher.ini`; the 4x3 render entry follows it instead of
   the XBE.
+- 16:10 (`FBOS_ASPECT=16:10`): a third set in the aspect table, by the rule
+  Nemesis2000's 16:9 numbers follow -- the camera aspect 1.6, and the x scale of
+  the projection and of the three matrices 5/6 of 4:3's (320 -> 266.67, 496 ->
+  413.33); the window shows 16:10. Launcher: Aspect 16:10, with a 6x5 render
+  entry (3840x2400, pixel for pixel at 16:10; `render=6x5` falls back to 4x at
+  another aspect; no SSAA, as scale x SSAA is at most 8) and 16:10 output sizes
+  (1280x800 to 3840x2400).
 - Russian: `tools/russian.py apply` translates `gtext.sdb` (dialogue, quests,
   menus, hints), the names in `global.sdb`/`deftexte.sdb` and in each level's own
   `.sdb`, and the inventory labels and the loading screen's `Loading...` inside

@@ -92,10 +92,17 @@ void xbox_FramebufferWindowSetAspect(uint32_t n, uint32_t d);   /* fb_present.c 
 
 /* The 11 places of tools/widescreen.py (projection height, camera aspect, matrix
  * diagonals) are read by the generated C from this table, filled at start-up
- * from FBOS_ASPECT. Index 0 is the projection at 0x3292A, 6 the camera aspect
- * at 0x89454. */
+ * from FBOS_ASPECT (4:3, 16:9 or 16:10). Index 0 is the projection at 0x3292A,
+ * 6 the camera aspect at 0x89454. */
 extern uint32_t g_fbos_aspect_site[];      /* gen/recomp_fbos_aspect.c (tools/aspect.py) */
-void fbos_aspect_select(int widescreen);
+/* FBOS_ASPECT's values, in tools/aspect.py's ASPECTS order: the index is
+ * what fbos_aspect_select() takes (tools/test_aspect.py checks the two
+ * lists alike). */
+static const struct { const char *name; uint32_t n, d; } k_fbos_aspect[] = {
+    { "4:3", 4, 3 }, { "16:9", 16, 9 }, { "16:10", 16, 10 },
+};
+#define FBOS_ASPECT_DEFAULT 1       /* 16:9, also when FBOS_ASPECT is unset */
+void fbos_aspect_select(int aspect);
 
 /* Name the host address a fault happened at.
  *
@@ -441,29 +448,33 @@ int main(int argc, char **argv)
      * after about ten minutes, and crashed on the first allocation refused. */
     if (!getenv("RECOMP_HEAP_RECLAIM"))
         _putenv_s("RECOMP_HEAP_RECLAIM", "1");
-    /* Aspect (tools/aspect.py): FBOS_ASPECT=16:9 or 4:3 picks the numbers the
-     * generated C reads from the table; 16:9 draws anamorphically into the
-     * 640x480 buffer and the window shows the frame at 16:9. Unset means 16:9.
-     * RECOMP_FB_ASPECT overrides the display aspect. Done before any guest code. */
+    /* Aspect (tools/aspect.py): FBOS_ASPECT=16:9, 16:10 or 4:3 picks the numbers
+     * the generated C reads from the table; 16:9 and 16:10 draw anamorphically
+     * into the 640x480 buffer and the window shows the frame at that aspect.
+     * Unset means 16:9. RECOMP_FB_ASPECT overrides the display aspect. Done
+     * before any guest code. */
     {
         const char *a = getenv("FBOS_ASPECT");
-        int wide = 1;
+        int k = FBOS_ASPECT_DEFAULT, i;
+        const int n = (int)(sizeof k_fbos_aspect / sizeof k_fbos_aspect[0]);
         float cam, proj;
         uint32_t t;
-        if (a && *a && strcmp(a, "16:9") != 0) {
-            if (strcmp(a, "4:3") == 0)
-                wide = 0;
+        if (a && *a) {
+            for (i = 0; i < n && strcmp(a, k_fbos_aspect[i].name) != 0; i++)
+                ;
+            if (i < n)
+                k = i;
             else
-                fprintf(stderr, "FBOS_ASPECT=%s is neither 16:9 nor 4:3; using 16:9\n", a);
+                fprintf(stderr, "FBOS_ASPECT=%s is not 16:9, 16:10 or 4:3; using 16:9\n", a);
         }
-        fbos_aspect_select(wide);
-        xbox_FramebufferWindowSetAspect(wide ? 16 : 4, wide ? 9 : 3);
+        fbos_aspect_select(k);
+        xbox_FramebufferWindowSetAspect(k_fbos_aspect[k].n, k_fbos_aspect[k].d);
         t = g_fbos_aspect_site[6];
         memcpy(&cam, &t, 4);
         t = g_fbos_aspect_site[0];
         memcpy(&proj, &t, 4);
         printf("Aspect %s (FBOS_ASPECT): camera %.4f, projection %.0f\n",
-               wide ? "16:9" : "4:3", cam, proj);
+               k_fbos_aspect[k].name, cam, proj);
     }
 
     /* .data is 5.4 MB virtual against 62 KB raw: the engine keeps its big

@@ -8,8 +8,8 @@
  * RECOMP_FB_FULLSCREEN (the picture), RECOMP_GPU_RASTER_SSAA (supersampling:
  * draws n times larger each way and averages back down),
  * RECOMP_GPU_RASTER_MSAA, RECOMP_FPS_LIMIT
- * (the frame-rate cap), FBOS_ASPECT (16:9 or 4:3, the picture the game
- * draws). The language copies a set of the game's text files
+ * (the frame-rate cap), FBOS_ASPECT (16:9, 16:10 or 4:3, the picture the
+ * game draws). The language copies a set of the game's text files
  * into place (set_language). The choice is
  * kept in bin\launcher.ini. Plain Win32, no resources: built with the game
  * (tools/launcher/CMakeLists.txt) into bin\.
@@ -23,11 +23,13 @@ typedef struct {
     const char *label;
     const char *value;
 } Choice;
+#define COUNT(a) ((int)(sizeof(a) / sizeof((a)[0])))
 
 /* The game's frame is 640x480; the GPU draws it a whole number of times larger
  * (RECOMP_GPU_RASTER_SCALE). The list keeps them square, but at Aspect 16:9
- * (FBOS_ASPECT) the frame is anamorphic and 4x3 is a
- * 2560x1440 picture pixel for pixel -- the last entry, shown only then.
+ * (FBOS_ASPECT) the frame is anamorphic and 4x3 is a 2560x1440 picture pixel
+ * for pixel, at 16:10 6x5 is 3840x2400 -- each shown only at its aspect
+ * (k_render_aspect).
  * No whole scale is 1080 high (2.25 x 480): on a 1080p screen 3x is shrunk
  * by 0.75 in height, 4x3 by 0.75 both ways, so the labels say which suits. */
 static const Choice k_render[] = {
@@ -36,18 +38,34 @@ static const Choice k_render[] = {
     { "3x - 1920 x 1440 (best for 1080p)", "3" },
     { "4x - 2560 x 1920", "4" },
     { "4x3 - 2560 x 1440 (16:9, 1:1 at 1440p)", "4x3" },
+    { "6x5 - 3840 x 2400 (16:10, 1:1 at 2400p)", "6x5" },
 };
+/* The aspect each render entry is shown at, NULL for every aspect (keep alike with k_render). */
+static const char *const k_render_aspect[] = { NULL, NULL, NULL, NULL, "16:9", "16:10" };
+typedef char k_render_aspect_alike[COUNT(k_render) == COUNT(k_render_aspect) ? 1 : -1];
 static const Choice k_aspect[] = {
     { "16:9 (widescreen)", "16:9" },
+    { "16:10 (for 16:10 screens)", "16:10" },
     { "4:3 (the game's own)", "4:3" },
 };
-static const Choice k_output[] = {
+/* Output: 16:10 sizes at Aspect 16:10, 16:9 ones otherwise (4:3 shows with
+ * bars); the two lists are alike in length and order, so a choice keeps its
+ * place when Aspect changes. */
+static const Choice k_output_16x9[] = {
     { "1280 x 720", "1280x720" },
     { "1600 x 900", "1600x900" },
     { "1920 x 1080", "1920x1080" },
     { "2560 x 1440", "2560x1440" },
     { "3840 x 2160", "3840x2160" },
 };
+static const Choice k_output_16x10[] = {
+    { "1280 x 800", "1280x800" },
+    { "1680 x 1050", "1680x1050" },
+    { "1920 x 1200", "1920x1200" },
+    { "2560 x 1600", "2560x1600" },
+    { "3840 x 2400", "3840x2400" },
+};
+typedef char k_output_alike[COUNT(k_output_16x9) == COUNT(k_output_16x10) ? 1 : -1];
 static const Choice k_aa[] = {
     { "Off", "1" },
     { "MSAA 2x", "2" },
@@ -69,7 +87,6 @@ static const Choice k_fps[] = {
     { "60 fps", "60" },
     { "120 fps", "120" },
 };
-#define COUNT(a) ((int)(sizeof(a) / sizeof((a)[0])))
 
 /* The game's text: game\resx\<name>.sdb, copied from <name>.sdb.en or .sdb.ru
  * before the start. tools/russian.py apply leaves both sets there (the fonts
@@ -85,6 +102,9 @@ static char s_root[MAX_PATH];           /* the repository: bin\.. */
 static char s_ini[MAX_PATH];
 static HWND s_render, s_output, s_aa, s_fps, s_full, s_lang, s_ssaa, s_hint;
 static HWND s_aspect;
+static int s_render_map[COUNT(k_render)];   /* list entry -> k_render */
+static int s_render_n;
+static const Choice *s_outputs = k_output_16x9;
 static HWND s_ssaa_unlock;              /* SSAA stays Off and greyed until this is ticked */
 static HFONT s_font;
 
@@ -123,24 +143,68 @@ static int selected(HWND h)
     return i < 0 ? 0 : i;
 }
 
-/* Fill the render list: 4x3 is there only at Aspect 16:9; a chosen 4x3 falls
- * back to the nearest square scale (4x). */
-static void set_render_choices(int wide)
+static const char *aspect_value(void)
 {
-    int n = wide ? COUNT(k_render) : COUNT(k_render) - 1;
-    int sel = selected(s_render), i;
-    if (sel >= n)
-        sel = find_value(k_render, n, "4", 3);
+    return k_aspect[selected(s_aspect)].value;
+}
+
+static int render_shown(int i, const char *asp)
+{
+    return !k_render_aspect[i] || strcmp(k_render_aspect[i], asp) == 0;
+}
+
+/* The k_render index of the entry the render list has selected. */
+static int render_index(void)
+{
+    int i = selected(s_render);
+    return i < s_render_n ? s_render_map[i] : 0;
+}
+
+/* Fill the render list for Aspect asp, selecting k_render[want]: 4x3 only at
+ * 16:9, 6x5 only at 16:10; one the aspect does not show falls back to 4x. */
+static void set_render_choices(const char *asp, int want)
+{
+    int sel = 0, i;
+    if (want < 0 || want >= COUNT(k_render) || !render_shown(want, asp))
+        want = find_value(k_render, COUNT(k_render), "4", 3);
     SendMessageA(s_render, CB_RESETCONTENT, 0, 0);
-    for (i = 0; i < n; i++)
+    s_render_n = 0;
+    for (i = 0; i < COUNT(k_render); i++) {
+        if (!render_shown(i, asp))
+            continue;
+        if (i == want)
+            sel = s_render_n;
+        s_render_map[s_render_n++] = i;
         SendMessageA(s_render, CB_ADDSTRING, 0, (LPARAM)k_render[i].label);
+    }
     SendMessageA(s_render, CB_SETCURSEL, (WPARAM)sel, 0);
+}
+
+static void set_output_choices(const char *asp, int sel)
+{
+    int i;
+    s_outputs = strcmp(asp, "16:10") == 0 ? k_output_16x10 : k_output_16x9;
+    SendMessageA(s_output, CB_RESETCONTENT, 0, 0);
+    for (i = 0; i < COUNT(k_output_16x9); i++)
+        SendMessageA(s_output, CB_ADDSTRING, 0, (LPARAM)s_outputs[i].label);
+    if (sel < 0 || sel >= COUNT(k_output_16x9))
+        sel = 3;
+    SendMessageA(s_output, CB_SETCURSEL, (WPARAM)sel, 0);
+}
+
+/* The output list index of a saved size: either list's, else 2560 wide. */
+static int output_index(const char *v)
+{
+    int i = find_value(k_output_16x9, COUNT(k_output_16x9), v, -1);
+    if (i < 0)
+        i = find_value(k_output_16x10, COUNT(k_output_16x10), v, 3);
+    return i;
 }
 
 /* The chosen render scale each way: "<n>" or "<x>x<y>". */
 static void render_scale(int *sx, int *sy)
 {
-    const char *v = k_render[selected(s_render)].value;
+    const char *v = k_render[render_index()].value;
     if (sscanf(v, "%dx%d", sx, sy) != 2)
         *sy = *sx = atoi(v);
 }
@@ -192,6 +256,11 @@ static void update_hint(void)
         snprintf(t, sizeof t, "Drawn at %d x %d, averaged to %d x %d.\n"
                               "SSAA and MSAA cost GPU time and video memory.",
                  640 * sx * n, 480 * sy * n, 640 * sx, 480 * sy);
+    else if ((sx > sy ? sx : sy) * 2 > MAX_SIDE)
+        snprintf(t, sizeof t, "The GPU draws %d x %d.\n"
+                              "SSAA and MSAA cost GPU time and video memory;\n"
+                              "no SSAA at this scale (scale x SSAA <= %d).",
+                 640 * sx, 480 * sy, MAX_SIDE);
     else
         snprintf(t, sizeof t, "The GPU draws %d x %d.\n"
                               "SSAA and MSAA cost GPU time and video memory;\n"
@@ -203,8 +272,8 @@ static void update_hint(void)
 static void save(void)
 {
     WritePrivateProfileStringA("launcher", "aspect", k_aspect[selected(s_aspect)].value, s_ini);
-    WritePrivateProfileStringA("launcher", "render", k_render[selected(s_render)].value, s_ini);
-    WritePrivateProfileStringA("launcher", "output", k_output[selected(s_output)].value, s_ini);
+    WritePrivateProfileStringA("launcher", "render", k_render[render_index()].value, s_ini);
+    WritePrivateProfileStringA("launcher", "output", s_outputs[selected(s_output)].value, s_ini);
     WritePrivateProfileStringA("launcher", "ssaa", k_ssaa[selected(s_ssaa)].value, s_ini);
     WritePrivateProfileStringA("launcher", "ssaa_unlocked",
         SendMessageA(s_ssaa_unlock, BM_GETCHECK, 0, 0) == BST_CHECKED ? "1" : "0", s_ini);
@@ -517,11 +586,11 @@ static int play(HWND owner)
     if (GetEnvironmentVariableA("RECOMP_GPU_RASTER", NULL, 0) == 0)
         SetEnvironmentVariableA("RECOMP_GPU_RASTER", "1");
     SetEnvironmentVariableA("RECOMP_PAD_RECORD", "saves\\pad_path.txt");
-    SetEnvironmentVariableA("FBOS_ASPECT", k_aspect[selected(s_aspect)].value);
-    SetEnvironmentVariableA("RECOMP_GPU_RASTER_SCALE", k_render[selected(s_render)].value);
+    SetEnvironmentVariableA("FBOS_ASPECT", aspect_value());
+    SetEnvironmentVariableA("RECOMP_GPU_RASTER_SCALE", k_render[render_index()].value);
     SetEnvironmentVariableA("RECOMP_GPU_RASTER_SSAA", k_ssaa[selected(s_ssaa)].value);
     SetEnvironmentVariableA("RECOMP_GPU_RASTER_MSAA", k_aa[selected(s_aa)].value);
-    SetEnvironmentVariableA("RECOMP_FB_SIZE", k_output[selected(s_output)].value);
+    SetEnvironmentVariableA("RECOMP_FB_SIZE", s_outputs[selected(s_output)].value);
     SetEnvironmentVariableA("RECOMP_FPS_LIMIT", k_fps[selected(s_fps)].value);
     SetEnvironmentVariableA("RECOMP_FB_FULLSCREEN",
         SendMessageA(s_full, BM_GETCHECK, 0, 0) == BST_CHECKED ? "1" : "0");
@@ -569,14 +638,13 @@ static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
         y += 56;
         make("STATIC", "Render resolution:", 0, 16, y, 300, 18, h, 0);
         GetPrivateProfileStringA("launcher", "render", "3", v, sizeof v, s_ini);
-        s_render = combo(h, ID_RENDER, 16, y + 20, k_render, COUNT(k_render),
-                         find_value(k_render, COUNT(k_render), v, 2));
-        set_render_choices(selected(s_aspect) == 0);
+        s_render = combo(h, ID_RENDER, 16, y + 20, k_render, 0, 0);
+        set_render_choices(aspect_value(), find_value(k_render, COUNT(k_render), v, 2));
         y += 56;
         make("STATIC", "Output (the picture's size):", 0, 16, y, 300, 18, h, 0);
         GetPrivateProfileStringA("launcher", "output", "2560x1440", v, sizeof v, s_ini);
-        s_output = combo(h, ID_OUTPUT, 16, y + 20, k_output, COUNT(k_output),
-                         find_value(k_output, COUNT(k_output), v, 3));
+        s_output = combo(h, ID_OUTPUT, 16, y + 20, k_output_16x9, 0, 0);
+        set_output_choices(aspect_value(), output_index(v));
         s_full = make("BUTTON", "Borderless full screen (F11 in game)",
                       BS_AUTOCHECKBOX | WS_TABSTOP, 16, y + 50, 300, 20, h, ID_FULL);
         if (GetPrivateProfileIntA("launcher", "fullscreen", 1, s_ini))
@@ -630,7 +698,8 @@ static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
         } else if (LOWORD(w) == ID_QUIT) {
             DestroyWindow(h);
         } else if (LOWORD(w) == ID_ASPECT && HIWORD(w) == CBN_SELCHANGE) {
-            set_render_choices(selected(s_aspect) == 0);
+            set_render_choices(aspect_value(), render_index());
+            set_output_choices(aspect_value(), selected(s_output));
             clamp_ssaa();
             update_hint();
         } else if ((LOWORD(w) == ID_RENDER || LOWORD(w) == ID_SSAA)

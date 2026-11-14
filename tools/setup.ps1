@@ -130,7 +130,7 @@ if (-not (Test-Path (Join-Path $Root 'game\default.xbe'))) {
     Run 'unpacking your disc into game\' { Push-Location $Toolkit; py -3 -m tools.xiso unpack $path -o (Join-Path $Root 'game'); $c = $LASTEXITCODE; Pop-Location; $global:LASTEXITCODE = $c }
 } else { Say "Disc already unpacked into game\" }
 
-# No widescreen step: 16:9 or 4:3 is picked at start (FBOS_ASPECT, the
+# No widescreen step: 16:9, 16:10 or 4:3 is picked at start (FBOS_ASPECT, the
 # launcher's Aspect), and the C is generated the same from a patched or an
 # unpatched disc (tools\aspect.py), so the disc is left as it is.
 

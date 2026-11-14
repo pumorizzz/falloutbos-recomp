@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Self-check of tools/aspect.py (the 16:9 / 4:3 switch of Fallout: BoS).
+"""Self-check of tools/aspect.py (the 16:9 / 16:10 / 4:3 switch of Fallout: BoS).
 
 Run: py -3 tools/test_aspect.py   (from the port root; pytest is not installed)
 
@@ -13,6 +13,7 @@ not the same for a patched and an unpatched image.
 
 A and B need no data, C the toolkit (deps/xboxrecomp), D game/default.xbe,
 E the generated C in src/game/recomp/gen. Missing data prints SKIP.
+F needs no data: main.c and the launcher name the same aspects as aspect.ASPECTS.
 """
 import os
 import re
@@ -38,14 +39,15 @@ def check(ok, what, detail=''):
     print(f'  {"PASS" if ok else "FAIL"}  {what}' + (f'  ({detail})' if detail and not ok else ''))
 
 
-# (hook VA, 4:3 value, 16:9 value), literals on purpose: not derived from widescreen.SITES
+# (hook VA, 4:3, 16:9, 16:10 value), literals on purpose: not derived from widescreen.SITES
+P = (0x43A00000, 0x43700000, 0x43855555)    # projection x
+K = (0x3FAA3D71, 0x3FE38E39, 0x3FCCCCCD)    # camera aspect
+M = (0x43F80000, 0x43BA0000, 0x43CEAAAB)    # matrix m00
 EXPECT = [
-    (0x0003292A, 0x43A00000, 0x43700000), (0x00032980, 0x43A00000, 0x43700000),
-    (0x000329BF, 0x43A00000, 0x43700000), (0x0007C61D, 0x43A00000, 0x43700000),
-    (0x000904A2, 0x43A00000, 0x43700000), (0x000904D0, 0x43A00000, 0x43700000),
-    (0x00089454, 0x3FAA3D71, 0x3FE38E39), (0x0008CC6D, 0x3FAA3D71, 0x3FE38E39),
-    (0x0008CE1F, 0x43F80000, 0x43BA0000), (0x0008CF9D, 0x43F80000, 0x43BA0000),
-    (0x0008CED1, 0x43F80000, 0x43BA0000),
+    (0x0003292A,) + P, (0x00032980,) + P, (0x000329BF,) + P,
+    (0x0007C61D,) + P, (0x000904A2,) + P, (0x000904D0,) + P,
+    (0x00089454,) + K, (0x0008CC6D,) + K,
+    (0x0008CE1F,) + M, (0x0008CF9D,) + M, (0x0008CED1,) + M,
 ]
 
 
@@ -54,8 +56,16 @@ def f32(u):
 
 
 print('A: site table')
-got = [(s[0], s[3], s[4]) for s in aspect.SITES]
-check(got == EXPECT, 'hook VAs and both value sets', f'{[(hex(a), hex(b), hex(c)) for a, b, c in got]}')
+got = [(s[0], s[3], s[4], s[5]) for s in aspect.SITES]
+check(got == EXPECT, 'hook VAs and the three value sets',
+      f'{[tuple(hex(x) for x in g) for g in got]}')
+check(abs(f32(0x43855555) / 320 - 5 / 6) < 1e-7, 'projection at 16:10 is 5/6 of 320')
+check(abs(f32(0x43CEAAAB) / 496 - 5 / 6) < 1e-7, 'matrix at 16:10 is 5/6 of 496')
+check(abs(f32(0x3FCCCCCD) - 1.6) < 1e-6, 'camera at 16:10 is 1.6')
+check([aspect.value_at(s[1], s[3], 16, 9) for s in aspect.SITES] == [e[2] for e in EXPECT],
+      "the rule gives Nemesis2000's 16:9 bytes")
+check([a[0] for a in aspect.ASPECTS] == ['4:3', '16:9', '16:10'], 'ASPECTS order')
+check(aspect.ASPECTS[aspect.DEFAULT][0] == '16:9', 'the default aspect is 16:9')
 check(abs(f32(0x43700000) / f32(0x43A00000) - 0.75) < 1e-9, 'projection 240/320 = 3/4')
 check(abs(f32(0x43BA0000) / f32(0x43F80000) - 0.75) < 1e-9, 'matrix 372/496 = 3/4')
 check(abs(f32(0x3FE38E39) - 16 / 9) < 1e-6, 'camera at 16:9 is 16/9', str(f32(0x3FE38E39)))
@@ -74,8 +84,12 @@ m = re.search(r'g_fbos_aspect_site\[\d+\] = \{([^}]*)\}', c)
 init = [int(x, 16) for x in re.findall(r'0x([0-9A-Fa-f]{8})', m.group(1))] if m else None
 check(arr('k_4x3') == [e[1] for e in EXPECT], 'k_4x3')
 check(arr('k_16x9') == [e[2] for e in EXPECT], 'k_16x9')
+check(arr('k_16x10') == [e[3] for e in EXPECT], 'k_16x10')
+check(re.search(r'k_sets\[3\] = \{ k_4x3, k_16x9, k_16x10 \}', c) is not None,
+      'k_sets lists the three sets in ASPECTS order')
 check(init == [e[2] for e in EXPECT], 'initialiser is 16:9 (unset FBOS_ASPECT)')
-check('void fbos_aspect_select(int widescreen)' in c, 'fbos_aspect_select present')
+check('void fbos_aspect_select(int aspect)' in c, 'fbos_aspect_select present')
+check('aspect < 3 ? aspect : 1]' in c, 'fbos_aspect_select falls back to 16:9')
 
 print('C: lifter hook')
 try:
@@ -178,8 +192,37 @@ else:
             continue
         check(all(f'g_fbos_aspect_site[{i}]' in b for i in idx), f'{name} reads sites {list(idx)}')
         code = re.sub(r'/\*.*?\*/', '', b, flags=re.S)       # the hook's comment names the 4:3 value
-        lit = [x for x in ('0x43700000', '0x3FE38E39', '0x3FAA3D71', '0x43BA0000') if x in code]
-        check(not lit, f'{name} has no 16:9 / camera literals', str(lit))
+        lit = [x for x in ('0x43700000', '0x3FE38E39', '0x3FAA3D71', '0x43BA0000',
+                           '0x43855555', '0x3FCCCCCD', '0x43CEAAAB') if x in code]
+        check(not lit, f'{name} has no 16:9 / 16:10 / camera literals', str(lit))
+
+print('F: main.c and the launcher name the same aspects as aspect.ASPECTS')
+mainc = os.path.join(ROOT, 'src', 'game', 'main.c')
+launc = os.path.join(ROOT, 'tools', 'launcher', 'launcher.c')
+if not (os.path.isfile(mainc) and os.path.isfile(launc)):
+    print('  SKIP  no main.c or launcher.c')
+else:
+    with open(mainc, encoding='utf-8', errors='replace') as f:
+        msrc = f.read()
+    with open(launc, encoding='utf-8', errors='replace') as f:
+        lsrc = f.read()
+    m = re.search(r'k_fbos_aspect\[\] = \{(.*?)\};', msrc, re.S)
+    got = re.findall(r'\{ "([^"]+)", (\d+), (\d+) \}', m.group(1)) if m else None
+    check(got == [(nm, str(n), str(d)) for nm, n, d in aspect.ASPECTS],
+          'main.c k_fbos_aspect is aspect.ASPECTS', str(got))
+    m = re.search(r'#define FBOS_ASPECT_DEFAULT (\d+)', msrc)
+    check(m is not None and int(m.group(1)) == aspect.DEFAULT,
+          'main.c FBOS_ASPECT_DEFAULT is aspect.DEFAULT')
+    names = {a[0] for a in aspect.ASPECTS}
+    m = re.search(r'k_render_aspect\[\] = \{(.*?)\};', lsrc, re.S)
+    ra = re.findall(r'"([^"]+)"', m.group(1)) if m else None
+    check(bool(ra) and set(ra) <= names, 'launcher k_render_aspect names are aspects', str(ra))
+    sc = re.findall(r'strcmp\(asp, "([^"]+)"\)', lsrc)
+    check(bool(sc) and set(sc) <= names, 'launcher strcmp(asp, ...) literals are aspects', str(sc))
+    m = re.search(r'k_aspect\[\] = \{(.*?)\};', lsrc, re.S)
+    vals = re.findall(r'\{ "[^"]*", "([^"]+)" \}', m.group(1)) if m else None
+    check(vals is not None and sorted(vals) == sorted(a[0] for a in aspect.ASPECTS),
+          'launcher k_aspect names the same aspects', str(vals))
 
 print('aspect: OK' if not failures else f'aspect: {failures} FAILED')
 sys.exit(1 if failures else 0)

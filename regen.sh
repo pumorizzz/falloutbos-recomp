@@ -3,7 +3,7 @@
 #
 # The C is generated from build/xbe/default.xbe, a copy with the 11 sites of
 # tools/widescreen.py put back to 4:3 (tools/aspect.py), so a patched and an
-# unpatched image give the same C; FBOS_ASPECT picks 16:9 or 4:3 at start.
+# unpatched image give the same C; FBOS_ASPECT picks 16:9, 16:10 or 4:3 at start.
 #
 #   xbe_parser    section layout -> build/fbos_analysis.json
 #   disasm        rewrites functions.json from scratch. ~2.5 min for the
