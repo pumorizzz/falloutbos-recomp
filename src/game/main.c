@@ -90,34 +90,12 @@ static BOOL load_xbe(const char *path, void **out_data, size_t *out_size)
 
 void xbox_FramebufferWindowSetAspect(uint32_t n, uint32_t d);   /* fb_present.c */
 
-/* Is this image patched to 16:9 (tools/widescreen.py)? The camera's aspect
- * at 0x00089455, `push 1.7778` instead of `push 1.3333`, says so. The code
- * that runs is the C generated from the image, so this assumes ./regen.sh
- * ran after the patch; Setup.cmd sees to that. */
-static int xbe_is_widescreen(const void *xbe, size_t size)
-{
-    const uint8_t *d = (const uint8_t *)xbe;
-    const uint32_t va = 0x00089455u, aspect_16_9 = 0x3FE38E39u;
-    uint32_t base, n, at, i;
-
-    if (size < 0x124)
-        return 0;
-    memcpy(&base, d + 0x104, 4);
-    memcpy(&n, d + 0x11C, 4);
-    memcpy(&at, d + 0x120, 4);
-    for (i = 0; i < n; i++) {
-        uint32_t s[5], off = at - base + i * 56;     /* flags, va, vsize, raw, rsize */
-        if ((size_t)off + 20 > size)
-            return 0;
-        memcpy(s, d + off, sizeof s);
-        if (va >= s[1] && va + 4 <= s[1] + s[4] && (size_t)s[3] + (va - s[1]) + 4 <= size) {
-            uint32_t v;
-            memcpy(&v, d + s[3] + (va - s[1]), 4);
-            return v == aspect_16_9;
-        }
-    }
-    return 0;
-}
+/* The 11 places of tools/widescreen.py (projection height, camera aspect, matrix
+ * diagonals) are read by the generated C from this table, filled at start-up
+ * from FBOS_ASPECT. Index 0 is the projection at 0x3292A, 6 the camera aspect
+ * at 0x89454. */
+extern uint32_t g_fbos_aspect_site[];      /* gen/recomp_fbos_aspect.c (tools/aspect.py) */
+void fbos_aspect_select(int widescreen);
 
 /* Name the host address a fault happened at.
  *
@@ -463,12 +441,29 @@ int main(int argc, char **argv)
      * after about ten minutes, and crashed on the first allocation refused. */
     if (!getenv("RECOMP_HEAP_RECLAIM"))
         _putenv_s("RECOMP_HEAP_RECLAIM", "1");
-    /* Widescreen (tools/widescreen.py): the patched title draws 16:9
-     * anamorphically into its 640x480 buffer, so the window shows the frame
-     * at 16:9. RECOMP_FB_ASPECT overrides it. */
-    if (xbe_is_widescreen(xbe_data, xbe_size)) {
-        xbox_FramebufferWindowSetAspect(16, 9);
-        printf("Widescreen XBE: the window shows the frame at 16:9\n");
+    /* Aspect (tools/aspect.py): FBOS_ASPECT=16:9 or 4:3 picks the numbers the
+     * generated C reads from the table; 16:9 draws anamorphically into the
+     * 640x480 buffer and the window shows the frame at 16:9. Unset means 16:9.
+     * RECOMP_FB_ASPECT overrides the display aspect. Done before any guest code. */
+    {
+        const char *a = getenv("FBOS_ASPECT");
+        int wide = 1;
+        float cam, proj;
+        uint32_t t;
+        if (a && *a && strcmp(a, "16:9") != 0) {
+            if (strcmp(a, "4:3") == 0)
+                wide = 0;
+            else
+                fprintf(stderr, "FBOS_ASPECT=%s is neither 16:9 nor 4:3; using 16:9\n", a);
+        }
+        fbos_aspect_select(wide);
+        xbox_FramebufferWindowSetAspect(wide ? 16 : 4, wide ? 9 : 3);
+        t = g_fbos_aspect_site[6];
+        memcpy(&cam, &t, 4);
+        t = g_fbos_aspect_site[0];
+        memcpy(&proj, &t, 4);
+        printf("Aspect %s (FBOS_ASPECT): camera %.4f, projection %.0f\n",
+               wide ? "16:9" : "4:3", cam, proj);
     }
 
     /* .data is 5.4 MB virtual against 62 KB raw: the engine keeps its big

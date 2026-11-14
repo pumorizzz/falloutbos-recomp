@@ -8,7 +8,8 @@
  * RECOMP_FB_FULLSCREEN (the picture), RECOMP_GPU_RASTER_SSAA (supersampling:
  * draws n times larger each way and averages back down),
  * RECOMP_GPU_RASTER_MSAA, RECOMP_FPS_LIMIT
- * (the frame-rate cap). The language copies a set of the game's text files
+ * (the frame-rate cap), FBOS_ASPECT (16:9 or 4:3, the picture the game
+ * draws). The language copies a set of the game's text files
  * into place (set_language). The choice is
  * kept in bin\launcher.ini. Plain Win32, no resources: built with the game
  * (tools/launcher/CMakeLists.txt) into bin\.
@@ -24,8 +25,8 @@ typedef struct {
 } Choice;
 
 /* The game's frame is 640x480; the GPU draws it a whole number of times larger
- * (RECOMP_GPU_RASTER_SCALE). The list keeps them square, but for an XBE
- * patched to 16:9 (tools/widescreen.py) the frame is anamorphic and 4x3 is a
+ * (RECOMP_GPU_RASTER_SCALE). The list keeps them square, but at Aspect 16:9
+ * (FBOS_ASPECT) the frame is anamorphic and 4x3 is a
  * 2560x1440 picture pixel for pixel -- the last entry, shown only then.
  * No whole scale is 1080 high (2.25 x 480): on a 1080p screen 3x is shrunk
  * by 0.75 in height, 4x3 by 0.75 both ways, so the labels say which suits. */
@@ -35,6 +36,10 @@ static const Choice k_render[] = {
     { "3x - 1920 x 1440 (best for 1080p)", "3" },
     { "4x - 2560 x 1920", "4" },
     { "4x3 - 2560 x 1440 (16:9, 1:1 at 1440p)", "4x3" },
+};
+static const Choice k_aspect[] = {
+    { "16:9 (widescreen)", "16:9" },
+    { "4:3 (the game's own)", "4:3" },
 };
 static const Choice k_output[] = {
     { "1280 x 720", "1280x720" },
@@ -74,13 +79,13 @@ static const char *const k_sdb[] = { "gtext.sdb", "global.sdb", "deftexte.sdb" }
 static const char *const k_lang[] = { "en", "ru" };
 
 enum { ID_RENDER = 100, ID_OUTPUT, ID_AA, ID_FPS, ID_FULL, ID_LANG, ID_PLAY, ID_QUIT, ID_SSAA,
-       ID_SSAA_UNLOCK };
+       ID_SSAA_UNLOCK, ID_ASPECT };
 
 static char s_root[MAX_PATH];           /* the repository: bin\.. */
 static char s_ini[MAX_PATH];
 static HWND s_render, s_output, s_aa, s_fps, s_full, s_lang, s_ssaa, s_hint;
+static HWND s_aspect;
 static HWND s_ssaa_unlock;              /* SSAA stays Off and greyed until this is ticked */
-static int s_render_n;                  /* entries of k_render shown: 4x3 only for 16:9 */
 static HFONT s_font;
 
 static int find_value(const Choice *c, int n, const char *v, int fallback)
@@ -116,6 +121,20 @@ static int selected(HWND h)
 {
     int i = (int)SendMessageA(h, CB_GETCURSEL, 0, 0);
     return i < 0 ? 0 : i;
+}
+
+/* Fill the render list: 4x3 is there only at Aspect 16:9; a chosen 4x3 falls
+ * back to the nearest square scale (4x). */
+static void set_render_choices(int wide)
+{
+    int n = wide ? COUNT(k_render) : COUNT(k_render) - 1;
+    int sel = selected(s_render), i;
+    if (sel >= n)
+        sel = find_value(k_render, n, "4", 3);
+    SendMessageA(s_render, CB_RESETCONTENT, 0, 0);
+    for (i = 0; i < n; i++)
+        SendMessageA(s_render, CB_ADDSTRING, 0, (LPARAM)k_render[i].label);
+    SendMessageA(s_render, CB_SETCURSEL, (WPARAM)sel, 0);
 }
 
 /* The chosen render scale each way: "<n>" or "<x>x<y>". */
@@ -183,6 +202,7 @@ static void update_hint(void)
 
 static void save(void)
 {
+    WritePrivateProfileStringA("launcher", "aspect", k_aspect[selected(s_aspect)].value, s_ini);
     WritePrivateProfileStringA("launcher", "render", k_render[selected(s_render)].value, s_ini);
     WritePrivateProfileStringA("launcher", "output", k_output[selected(s_output)].value, s_ini);
     WritePrivateProfileStringA("launcher", "ssaa", k_ssaa[selected(s_ssaa)].value, s_ini);
@@ -276,29 +296,6 @@ static long xbe_offset(const unsigned char *d, DWORD n, DWORD va)
             return raw + (va - sva) <= n ? (long)(raw + (va - sva)) : -1;
     }
     return -1;
-}
-
-/* Is game\default.xbe patched to 16:9 (tools/widescreen.py)? The camera's
- * aspect at 0x00089455 is `push 1.7778` then, as src/game/main.c checks. */
-static int xbe_widescreen(void)
-{
-    char p[MAX_PATH];
-    DWORD n = 0;
-    unsigned char *d;
-    long o;
-    int wide = 0;
-
-    snprintf(p, sizeof p, "%s\\game\\default.xbe", s_root);
-    if ((d = read_all(p, &n)) == NULL)
-        return 0;
-    o = xbe_offset(d, n, 0x00089455u);
-    if (o >= 0 && (DWORD)o + 4 <= n) {
-        DWORD v;
-        memcpy(&v, d + o, 4);
-        wide = v == 0x3FE38E39u;
-    }
-    free(d);
-    return wide;
 }
 
 /* "FBOS-RU-CODE-FIXES n/10" in bin\fobos.exe (tools/russian.py code-mark): n,
@@ -520,6 +517,7 @@ static int play(HWND owner)
     if (GetEnvironmentVariableA("RECOMP_GPU_RASTER", NULL, 0) == 0)
         SetEnvironmentVariableA("RECOMP_GPU_RASTER", "1");
     SetEnvironmentVariableA("RECOMP_PAD_RECORD", "saves\\pad_path.txt");
+    SetEnvironmentVariableA("FBOS_ASPECT", k_aspect[selected(s_aspect)].value);
     SetEnvironmentVariableA("RECOMP_GPU_RASTER_SCALE", k_render[selected(s_render)].value);
     SetEnvironmentVariableA("RECOMP_GPU_RASTER_SSAA", k_ssaa[selected(s_ssaa)].value);
     SetEnvironmentVariableA("RECOMP_GPU_RASTER_MSAA", k_aa[selected(s_aa)].value);
@@ -564,14 +562,16 @@ static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
     case WM_CREATE: {
         char v[32];
         int y = 16;
+        make("STATIC", "Aspect:", 0, 16, y, 300, 18, h, 0);
+        GetPrivateProfileStringA("launcher", "aspect", "16:9", v, sizeof v, s_ini);
+        s_aspect = combo(h, ID_ASPECT, 16, y + 20, k_aspect, COUNT(k_aspect),
+                         find_value(k_aspect, COUNT(k_aspect), v, 0));
+        y += 56;
         make("STATIC", "Render resolution:", 0, 16, y, 300, 18, h, 0);
         GetPrivateProfileStringA("launcher", "render", "3", v, sizeof v, s_ini);
-        s_render_n = xbe_widescreen() ? COUNT(k_render) : COUNT(k_render) - 1;
-        /* 4x3 without 16:9: the nearest square scale. */
-        if (strcmp(v, "4x3") == 0 && s_render_n < COUNT(k_render))
-            strcpy(v, "4");
-        s_render = combo(h, ID_RENDER, 16, y + 20, k_render, s_render_n,
-                         find_value(k_render, s_render_n, v, 2));
+        s_render = combo(h, ID_RENDER, 16, y + 20, k_render, COUNT(k_render),
+                         find_value(k_render, COUNT(k_render), v, 2));
+        set_render_choices(selected(s_aspect) == 0);
         y += 56;
         make("STATIC", "Output (the picture's size):", 0, 16, y, 300, 18, h, 0);
         GetPrivateProfileStringA("launcher", "output", "2560x1440", v, sizeof v, s_ini);
@@ -629,6 +629,10 @@ static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
                 DestroyWindow(h);
         } else if (LOWORD(w) == ID_QUIT) {
             DestroyWindow(h);
+        } else if (LOWORD(w) == ID_ASPECT && HIWORD(w) == CBN_SELCHANGE) {
+            set_render_choices(selected(s_aspect) == 0);
+            clamp_ssaa();
+            update_hint();
         } else if ((LOWORD(w) == ID_RENDER || LOWORD(w) == ID_SSAA)
                    && HIWORD(w) == CBN_SELCHANGE) {
             clamp_ssaa();
@@ -655,7 +659,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 {
     WNDCLASSA wc;
     NONCLIENTMETRICSA ncm;
-    RECT r = { 0, 0, 332, 488 };
+    RECT r = { 0, 0, 332, 544 };
     MSG msg;
     HWND h;
     char *slash;

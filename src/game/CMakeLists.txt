@@ -13,12 +13,15 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 # a plain `cmake --build` re-configure (and so get here) when one changes.
 option(FBOS_AUTO_REGEN "Re-run regen.sh when the toolkit's codegen changes" ON)
 if(FBOS_AUTO_REGEN)
+    get_filename_component(_fbos_root "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
     set(_gen_stamp "${CMAKE_CURRENT_SOURCE_DIR}/recomp/gen/.regen_stamp")
     file(GLOB_RECURSE _codegen_inputs
         "${XBOXRECOMP_DIR}/tools/recomp/*.py"   "${XBOXRECOMP_DIR}/tools/recomp/*.json"
         "${XBOXRECOMP_DIR}/tools/func_id/*.py"  "${XBOXRECOMP_DIR}/tools/func_id/*.json"
         "${XBOXRECOMP_DIR}/tools/abi_analysis/*.py")
     list(FILTER _codegen_inputs EXCLUDE REGEX "/test_[^/]*$|/__pycache__/")
+    # the port's own codegen: aspect.py lifts widescreen.py's sites as table reads
+    list(APPEND _codegen_inputs "${_fbos_root}/tools/aspect.py" "${_fbos_root}/tools/widescreen.py")
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${_codegen_inputs})
     set(_stale "")
     set(_no_gen OFF)
@@ -38,7 +41,6 @@ if(FBOS_AUTO_REGEN)
             endif()
         endforeach()
     endif()
-    get_filename_component(_fbos_root "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
     if(_no_gen AND NOT EXISTS "${_fbos_root}/game/default.xbe")
         message(FATAL_ERROR "src/game/recomp/gen/ is empty and there is no game/default.xbe "
             "to generate it from. Unpack your own disc into game/ (Setup.cmd does it), "

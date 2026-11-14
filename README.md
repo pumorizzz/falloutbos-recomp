@@ -22,9 +22,9 @@ game shipped on Xbox and PS2 only; there was never a PC version.
 | | |
 |---|---|
 | **Direct3D 11 rendering** | The NV2A's work is drawn on the GPU, register combiners in one ubershader, presented from a swapchain. Capped at 60 fps; uncapped, Ruby's bar runs at about 130 fps (RTX 3080 Ti). |
-| **16:9, up to 4K** | Nemesis2000's widescreen patch mapped onto the USA disc; the GPU renders at up to 4x the game's resolution with SSAA up to 4x and MSAA up to 8x; borderless full screen on F11. |
+| **16:9, up to 4K** | Nemesis2000's widescreen patch mapped onto the USA disc, 16:9 or 4:3 chosen in the launcher; the GPU renders at up to 4x the game's resolution with SSAA up to 4x and MSAA up to 8x; borderless full screen on F11. |
 | **Russian translation** | Every line of dialogue, quest, menu and hint, item names, and Cyrillic drawn into the game's own fonts. English or Russian is picked in the launcher. |
-| **Launcher** | `bin\FalloutLauncher.exe`: resolution, SSAA, MSAA, picture size, full screen, frame-rate limit, language. |
+| **Launcher** | `bin\FalloutLauncher.exe`: aspect, resolution, SSAA, MSAA, picture size, full screen, frame-rate limit, language. |
 | **Pad or keyboard** | XInput pads (Xbox 360/One) through the game's own USB stack; full keyboard mapping. |
 | **Checked** | Frame by frame against a PS2 playthrough; `boot_check` 8/8 from power-on to Carbon; 0 faults, 0 unresolved calls. |
 
@@ -163,7 +163,7 @@ git clone https://github.com/pumorizzz/falloutbos-recomp falloutbos
 cd falloutbos
 git clone --branch gpu-rastr https://github.com/pumorizzz/xboxrecomp deps/xboxrecomp
 
-# 2. your disc, and the 16:9 patch (leave it out for 4:3)
+# 2. your disc (the 16:9 patch is optional: the C is generated with its sites at 4:3 either way, and FBOS_ASPECT picks 16:9 or 4:3 at start)
 (cd deps/xboxrecomp && py -3 -m tools.xiso unpack "/path/to/Fallout - Brotherhood of Steel (USA).iso" -o ../../game)
 py -3 tools/widescreen.py apply
 
@@ -176,8 +176,10 @@ cmake --build build-msvc --config Release
 ```
 
 Both XBE patches (`widescreen.py`, `russian.py`) check every site against its
-original bytes and refuse another disc revision. After either one, regenerate and
-build again. Each touches only its own sites: `widescreen.py revert` puts back
+original bytes and refuse another disc revision. After `russian.py`, regenerate and
+build again. `widescreen.py` no longer changes the generated C: `tools/aspect.py`
+generates it from a copy with the widescreen sites at 4:3 and reads them from a
+table filled at start. Each touches only its own sites: `widescreen.py revert` puts back
 the 4:3 bytes and leaves the Russian fixes, and the launcher's language switch
 changes only the XBE's strings, so either order works.
 
@@ -193,12 +195,13 @@ environment.
 | Variable | Effect |
 |---|---|
 | `RECOMP_GPU_RASTER=1` \| `warp` \| `compare` \| `0` | draw on the GPU (WARP if there is no hardware adapter), on WARP, on both paths with a difference report per flip, or on the CPU |
-| `RECOMP_GPU_RASTER_SCALE=<n>` \| `<x>x<y>` | render resolution as a multiple of 640x480 (1-8 each way; the launcher offers 1x-4x, and `4x3` -- 2560x1440, pixel for pixel at 16:9 -- when the XBE is patched to 16:9) |
+| `RECOMP_GPU_RASTER_SCALE=<n>` \| `<x>x<y>` | render resolution as a multiple of 640x480 (1-8 each way; the launcher offers 1x-4x, and `4x3` -- 2560x1440, pixel for pixel at 16:9 -- when Aspect is 16:9) |
+| `FBOS_ASPECT=16:9` \| `4:3` | the picture the game draws: 16:9 (the default, also when unset) or the original 4:3; the launcher's Aspect sets it, and the window's display aspect follows it |
 | `RECOMP_GPU_RASTER_SSAA=<n>` | supersampling: the GPU draws n times the render resolution each way (2-4) and averages each n x n block down to it before the picture is scaled to the window; scale x n is at most 8 a side (n is lowered otherwise) |
 | `RECOMP_GPU_RASTER_MSAA=<n>` | 2, 4 or 8 samples, with or without SSAA |
 | `RECOMP_FB_SIZE=<w>x<h>` | the picture's size; the window fits it to the screen |
 | `RECOMP_FB_FULLSCREEN=1` | start in borderless full screen (F11 toggles) |
-| `RECOMP_FB_ASPECT=<n>:<d>` | display aspect; `16:9` by itself for a widescreen-patched XBE |
+| `RECOMP_FB_ASPECT=<n>:<d>` | display aspect; follows `FBOS_ASPECT`, this overrides it |
 | `RECOMP_FPS_LIMIT=<hz>` | frame-rate cap at the flip, 60 by default; `0` lifts it (menus then misbehave) |
 | `RECOMP_VSH_THREADS=<n>` | threads for vertex programs (default: half the logical processors, at most 16) |
 | `RECOMP_KEYBOARD=1` | keyboard as player 1 |

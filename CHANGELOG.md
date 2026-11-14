@@ -17,8 +17,9 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
 - README: what the fork fixed, the checks, and screenshots of the Tutorial and
   Carbon.
 - 16:9: `tools/widescreen.py` maps Nemesis2000's PAL widescreen patch onto the
-  USA image (11 sites, each checked; `revert` restores 4:3); `Setup.cmd`
-  applies it and regenerates. The window shows the frame at 16:9 by itself.
+  USA image (11 sites, each checked; `revert` restores 4:3). The game draws
+  16:9 by default (`FBOS_ASPECT`, see Aspect at start below); the XBE patch no
+  longer changes the generated C. The window shows the frame at 16:9 by itself.
 - The picture opens at 2560x1440 (`RECOMP_FB_SIZE`, fitted to the screen),
   filtered into the display aspect with bars (`RECOMP_FB_ASPECT`); F11 for
   borderless full screen.
@@ -28,12 +29,19 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
 - SSAA on the GPU path (`RECOMP_GPU_RASTER_SSAA`, toolkit): drawn at scale x n,
   each n x n block averaged down to the chosen scale before it is shown.
   Launcher: render resolution 1x-4x (640x480 to 2560x1920), plus 4x3
-  (2560x1440, pixel for pixel at 16:9) only when `game\default.xbe` is
-  patched to 16:9 (an old `render=4x3` opens as 4x otherwise), SSAA
+  (2560x1440, pixel for pixel at 16:9) only when Aspect is 16:9 (a chosen
+  `render=4x3` falls back to 4x at Aspect 4:3), SSAA
   (off/2x/3x/4x) and MSAA as separate choices, kept as `ssaa` in
   `bin\launcher.ini`. SSAA is locked (Off, greyed) until "Unlock" is ticked
   and a warning on how it works and what it costs is answered Yes; kept as
   `ssaa_unlocked`.
+- Aspect at start, one exe: the C is generated from a copy of `default.xbe`
+  with `tools/widescreen.py`'s 11 sites at 4:3, and `tools/aspect.py` lifts
+  them as reads of a table (`gen/recomp_fbos_aspect.c`) that `main.c` fills
+  from `FBOS_ASPECT` (`16:9`, the default, or `4:3`), so a patched and an
+  unpatched XBE give the same C. Launcher: Aspect (16:9 / 4:3), kept as
+  `aspect` in `bin\launcher.ini`; the 4x3 render entry follows it instead of
+  the XBE.
 - Russian: `tools/russian.py apply` translates `gtext.sdb` (dialogue, quests,
   menus, hints), the names in `global.sdb`/`deftexte.sdb` and in each level's own
   `.sdb`, and the inventory labels and the loading screen's `Loading...` inside

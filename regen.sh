@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # Regenerate the recompiled C from game/default.xbe.
 #
+# The C is generated from build/xbe/default.xbe, a copy with the 11 sites of
+# tools/widescreen.py put back to 4:3 (tools/aspect.py), so a patched and an
+# unpatched image give the same C; FBOS_ASPECT picks 16:9 or 4:3 at start.
+#
 #   xbe_parser    section layout -> build/fbos_analysis.json
 #   disasm        rewrites functions.json from scratch. ~2.5 min for the
 #                 600 KB .text. Only re-run when the toolkit's disasm or the
@@ -37,14 +41,17 @@ if [[ ! -f "$XBE" ]]; then
 fi
 
 mkdir -p "$FBOS/build"
+XBE_GEN="$FBOS/build/xbe/default.xbe"      # basename must stay default.xbe (recomp's binary check)
+mkdir -p "$FBOS/build/xbe"
+$PY "$FBOS/tools/aspect.py" neutral "$XBE" "$XBE_GEN" || exit 1
 
 if [[ "${1:-}" == "--disasm" || ! -f "$FBOS/build/disasm/functions.json" ]]; then
     echo "==> xbe_parser"
-    (cd "$RECOMP" && $PY -m tools.xbe_parser "$XBE" \
+    (cd "$RECOMP" && $PY -m tools.xbe_parser "$XBE_GEN" \
         --json "$FBOS/build/fbos_analysis.json" --quiet) || exit 1
 
     echo "==> disasm"
-    (cd "$RECOMP" && $PY -m tools.disasm "$XBE" \
+    (cd "$RECOMP" && $PY -m tools.disasm "$XBE_GEN" \
         --analysis-json "$FBOS/build/fbos_analysis.json" \
         --seed-functions "$FBOS/config/seed_functions.json" \
         -o "$FBOS/build/disasm" -v > "$FBOS/build/disasm.log" 2>&1) \
@@ -53,14 +60,14 @@ if [[ "${1:-}" == "--disasm" || ! -f "$FBOS/build/disasm/functions.json" ]]; the
 fi
 
 echo "==> func_id"
-(cd "$RECOMP" && $PY -m tools.func_id "$XBE" \
+(cd "$RECOMP" && $PY -m tools.func_id "$XBE_GEN" \
     --functions "$FBOS/build/disasm/functions.json" \
     --strings   "$FBOS/build/disasm/strings.json" \
     --xrefs     "$FBOS/build/disasm/xrefs.json" \
     -o "$FBOS/build/func_id" | tail -1) || exit 1
 
 echo "==> abi_analysis"
-(cd "$RECOMP" && $PY -m tools.abi_analysis "$XBE" \
+(cd "$RECOMP" && $PY -m tools.abi_analysis "$XBE_GEN" \
     --functions  "$FBOS/build/disasm/functions.json" \
     --identified "$FBOS/build/func_id/identified_functions.json" \
     --output-dir "$FBOS/build/abi" | tail -1) || exit 1
@@ -74,7 +81,7 @@ fi
 echo "==> recomp"
 # Capture the status: a failed recomp that leaves the previous gen/ in place
 # and reports success is the worst failure this script can have.
-(cd "$RECOMP" && $PY -m tools.recomp "$XBE" --all --split 500 \
+(cd "$RECOMP" && $PY "$FBOS/tools/aspect.py" recomp "$XBE_GEN" --all --split 500 \
     --disasm-dir  "$FBOS/build/disasm" \
     --func-id-dir "$FBOS/build/func_id" \
     --abi-dir     "$FBOS/build/abi" \
@@ -84,7 +91,7 @@ echo "==> recomp"
     -o "$FBOS/build/recomp"
 ) > "$FBOS/build/recomp.log" 2>&1
 status=$?
-grep -aE "unresolved|functions \(|Complete" "$FBOS/build/recomp.log" || true
+grep -aE "unresolved|functions \(|Complete|aspect:" "$FBOS/build/recomp.log" || true
 if [ $status -ne 0 ]; then
     echo "!! recomp failed (status $status) -- gen/ is now STALE" >&2
     tail -25 "$FBOS/build/recomp.log" >&2
@@ -94,6 +101,7 @@ fi
 # string built into bin/fobos.exe: the launcher reads it before it sets the
 # Russian text (without them the inventory's labels are cut to "...").
 $PY "$FBOS/tools/russian.py" code-mark "$FBOS/src/game/recomp/gen/recomp_fbos_mark.c" || exit 1
+$PY "$FBOS/tools/aspect.py" table "$FBOS/src/game/recomp/gen/recomp_fbos_aspect.c" || exit 1
 # recomp leaves unchanged files alone, so their times say nothing; this one
 # marks when gen/ last matched the toolkit (src/game/CMakeLists.txt).
 touch "$FBOS/src/game/recomp/gen/.regen_stamp"
