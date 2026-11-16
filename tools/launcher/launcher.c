@@ -80,13 +80,14 @@ static const Choice k_ssaa[] = {
     { "SSAA 4x", "4" },
 };
 #define MAX_SIDE 8                      /* the toolkit's limit on scale x SSAA a side */
-/* RECOMP_FPS_LIMIT: the flip waits for the next 1/n s, standing in for the
- * TV's vblank. No "unlimited": menus and loading screens would run at
- * hundreds of fps and take a held button as several presses. */
+/* RECOMP_FPS_LIMIT: flips land on the 60 Hz vblank grid at least 60/n ticks
+ * apart, as on the console; a late frame waits a tick (39 fps shows as 30).
+ * No "unlimited": menus and loading screens would run at hundreds of fps and
+ * take a held button as several presses. 60 is the top: a higher limit counts
+ * as 60. An old fps=120 in launcher.ini falls back to 60. */
 static const Choice k_fps[] = {
     { "30 fps", "30" },
     { "60 fps", "60" },
-    { "120 fps", "120" },
 };
 
 /* The game's text: game\resx\<name>.sdb, copied from <name>.sdb.en or .sdb.ru
@@ -246,7 +247,7 @@ static int confirm_ssaa(HWND owner)
         "everything, textures and cut-out edges included.\n\n"
         "It costs n x n times the pixels: SSAA 2x is 4 times the GPU work, "
         "3x is 9 times, 4x is 16 times, and video memory grows the same way. "
-        "4x with SSAA 2x draws 5120 x 3840 and runs at about 23 fps in Carbon "
+        "4x with SSAA 2x draws 5120 x 3840 and runs at 20 fps in Carbon "
         "on a fast card.\n\n"
         "MSAA smooths the edges of models for far less. Unlock SSAA anyway?",
         "Supersampling (SSAA)", MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2) == IDYES;

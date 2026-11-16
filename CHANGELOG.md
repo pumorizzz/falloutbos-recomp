@@ -102,7 +102,7 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
 - README rewritten around the current build, with new 16:9 screenshots; the old
   4:3 screenshots and the GIF are gone.
 - `bin\FalloutLauncher.exe` (`tools/launcher`): render resolution, picture
-  size, full screen, MSAA and the frame-rate limit (30, 60 or 120), then the game; remembered in `bin\launcher.ini`.
+  size, full screen, MSAA and the frame-rate limit (30 or 60), then the game; remembered in `bin\launcher.ini`.
 
 ### Changed (GPU rendering and play)
 - Pad recording is on F8 (F10 still plays it back): F9 also toggles the
@@ -112,6 +112,14 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
   recorder now says so instead of writing every step at 0.
 
 ### Fixed (GPU rendering and play)
+- Frame pacing: game frames came in pairs (4 + 28 ms at 60 fps, 5 + 61 ms at
+  30). Flips now land only on a 60 Hz vblank grid of real time, at least
+  60/limit ticks apart, and a late frame waits for the next tick, as on a
+  console with vsync (toolkit `RECOMP_FPS_LIMIT`; 39 fps now shows as a steady
+  30). The game's own frame time follows the flip: D3D's kick-off is answered
+  on a thread of its own while the executor waits for the tick, and the fence
+  event is set only where the GPU's wake-up method would set it (toolkit). The
+  launcher's 120 fps choice is gone: the limit tops out at 60.
 - Point sprites were mirrored vertically for about 85 % of Fallout's particles,
   the mirroring flipping with the camera: the square's orientation followed the
   sign of a vertex-program constant (`c[58].y`) that is the game's own data.

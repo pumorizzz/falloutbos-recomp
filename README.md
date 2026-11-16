@@ -215,7 +215,7 @@ environment.
 | `RECOMP_FB_SIZE=<w>x<h>` | the picture's size; the window fits it to the screen; the launcher offers 16:10 sizes at Aspect 16:10 |
 | `RECOMP_FB_FULLSCREEN=1` | start in borderless full screen (F11 toggles) |
 | `RECOMP_FB_ASPECT=<n>:<d>` | display aspect; follows `FBOS_ASPECT`, this overrides it |
-| `RECOMP_FPS_LIMIT=<hz>` | frame-rate cap at the flip, 60 by default; `0` lifts it (menus then misbehave) |
+| `RECOMP_FPS_LIMIT=<hz>` | frame-rate cap: flips land on a 60 Hz vblank grid at least 60/hz ticks apart, a late frame waits for the next tick (39 fps shows as 30); 60 by default, above 60 counts as 60; `0` lifts it (menus then misbehave) |
 | `RECOMP_VSH_THREADS=<n>` | threads for vertex programs (default: half the logical processors, at most 16) |
 | `RECOMP_KEYBOARD=1` | keyboard as player 1 |
 | `RECOMP_PAD_RECORD=<file>` | F8 records pad 1 into the file, F10 plays it back (time is kept in frames, so it needs `RECOMP_PB_EXEC`) |
