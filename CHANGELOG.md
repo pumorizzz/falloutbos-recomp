@@ -112,6 +112,13 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
   recorder now says so instead of writing every step at 0.
 
 ### Fixed (GPU rendering and play)
+- A crash on the first Bink movie when the frame rate was uncapped (`RECOMP_FPS_LIMIT=0`), and stray `[ICALL] … is not code` lines at 60 fps, both right after the pad connects: XInput's capability query waited on an event built on its stack, the wait failed at once, and the USB interrupt later wrote the request's completion into whatever frame had replaced it. A KEVENT on a guest stack is now a real event, and a USB control transfer completes in a few milliseconds instead of up to 62 (toolkit).
+- `Play.cmd` hitched for about 80 ms every 10 s: the pushbuffer executor
+  printed its periodic report into the console line by line (~90 console
+  writes; stderr is unbuffered) while the game waited for it. The report, the
+  D3D11 back end's 10 s line and the kernel's 2 s summary now go out in one
+  write each (toolkit); under PowerShell's `Start-Process` redirection the
+  same report stood the game still for 300-400 ms.
 - Frame pacing: game frames came in pairs (4 + 28 ms at 60 fps, 5 + 61 ms at
   30). Flips now land only on a 60 Hz vblank grid of real time, at least
   60/limit ticks apart, and a late frame waits for the next tick, as on a
