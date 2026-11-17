@@ -7,7 +7,7 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
 
 ### Added (GPU rendering and play, 2026-10-30 to 2026-11-14)
 - Direct3D 11 render back end (`RECOMP_GPU_RASTER`, toolkit `gpu-rastr`):
-  depth, stencil, the register combiners in one ubershader, presented from a
+  depth, stencil, the register combiners in pixel shaders, presented from a
   swapchain; `compare` mode; device loss falls back to the CPU rasteriser.
   `Play.cmd` draws on the GPU by default.
 - 60 fps cap at the flip (`RECOMP_FPS_LIMIT`, `0` turns it off).
@@ -105,6 +105,13 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
   4:3 screenshots and the GIF are gone.
 - `bin\FalloutLauncher.exe` (`tools/launcher`): render resolution, picture
   size, full screen, MSAA and the frame-rate limit (30 or 60), then the game; remembered in `bin\launcher.ini`.
+- A GPU profile of the Direct3D 11 path (`RECOMP_GPU_PROF=<secs>`, toolkit):
+  timestamps by pass and render target, draws, pixels, clears and resolves per
+  frame, off by default.
+- `RECOMP_GPU_RASTER_PSCHECK=<ref.hlsl>[,<every>]` (toolkit): every
+  `<every>`-th frame each draw of the Direct3D 11 path is drawn again through its pixel
+  shader and through a reference shader, and the differing pixels are
+  counted; diagnostics only, off by default.
 
 ### Changed (GPU rendering and play)
 - Pad recording is on F8 (F10 still plays it back): F9 also toggles the
@@ -112,6 +119,18 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
   and playback keep time in frames and need the pushbuffer executor
   (`RECOMP_PB_EXEC`, set by the launcher and `Play.cmd`); without it the
   recorder now says so instead of writing every step at 0.
+- The Direct3D 11 path's pixel shader is cheaper (toolkit): the register
+  combiners keep their registers in registers rather than in an array the GPU
+  keeps in memory, there is one shader per path (screen, fixed-function,
+  combiners by what their stages sample), and wrapping a texel coordinate no
+  longer divides. By Ruby's bar at 6x5 + MSAA 2 the GPU's frame goes from
+  24.6 to 6.9 ms (combiner draws 22.8 -> 5.5 ms); the picture is the same bit
+  for bit, checked against the previous shader on WARP and on the GPU. At
+  6x5 + MSAA 2 with the 60 fps cap the game now holds 60 fps (RTX 3080 Ti):
+  100 % of frames at 16.7 ms at the Carbon spawn and 99.9 % by Ruby's bar;
+  before, it ran at about 44-47 fps. The
+  shaders are compiled when the toolkit is built, so the window opens at once
+  and the game reaches control sooner (16.0 s from start against 20.3).
 
 ### Fixed (GPU rendering and play)
 - A crash on the first Bink movie when the frame rate was uncapped (`RECOMP_FPS_LIMIT=0`), and stray `[ICALL] … is not code` lines at 60 fps, both right after the pad connects: XInput's capability query waited on an event built on its stack, the wait failed at once, and the USB interrupt later wrote the request's completion into whatever frame had replaced it. A KEVENT on a guest stack is now a real event, and a USB control transfer completes in a few milliseconds instead of up to 62 (toolkit).

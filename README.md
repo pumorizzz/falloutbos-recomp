@@ -21,7 +21,7 @@ game shipped on Xbox and PS2 only; there was never a PC version.
 
 | | |
 |---|---|
-| **Direct3D 11 rendering** | The NV2A's work is drawn on the GPU, register combiners in one ubershader, presented from a swapchain. Capped at 60 fps; uncapped, Ruby's bar runs at about 130 fps (RTX 3080 Ti). |
+| **Direct3D 11 rendering** | The NV2A's work is drawn on the GPU, register combiners in pixel shaders compiled with the build, presented from a swapchain. Capped at 60 fps, which it holds at 6x5 + MSAA 2 by Ruby's bar (RTX 3080 Ti). |
 | **16:9, up to 4K** | Nemesis2000's widescreen patch mapped onto the USA disc, 16:9, 16:10 or 4:3 chosen in the launcher; the GPU renders at up to 4x the game's resolution (6x5 at 16:10) with SSAA up to 4x and MSAA up to 8x; borderless full screen on F11. |
 | **Russian translation** | Every line of dialogue, quest, menu and hint, item names, and Cyrillic drawn into the game's own fonts. English or Russian is picked in the launcher. |
 | **Launcher** | `bin\FalloutLauncher.exe`: aspect, resolution, SSAA, MSAA, picture size, full screen, frame-rate limit, language. |
@@ -228,8 +228,12 @@ dumps shown frames from the GPU path, and `FBOS_PROFILE=<start>,<secs>` samples
 every thread. `RECOMP_RASTER_THREADS=N` sets the CPU rasteriser's worker threads
 (default: logical processors - 4), `RECOMP_FB_DUMP_FLIPS=<file>` dumps every flip
 while the file exists (`1`: from the start), `RECOMP_KERNEL_LOG_BUDGET=N` logs
-the first N kernel calls (200 by default), and `RECOMP_USB_STATS=1` prints
-controller transfer counts every 5 seconds. `FBOS_TEST_LEVELUP=<secs>` raises player 1's "level gained" flag
+the first N kernel calls (200 by default), `RECOMP_USB_STATS=1` prints
+controller transfer counts every 5 seconds, and `RECOMP_GPU_PROF=<secs>` prints
+where the GPU's time per frame goes (toolkit);
+`RECOMP_GPU_RASTER_PSCHECK=<ref.hlsl>[,<every>]` draws every `<every>`-th frame
+again through a reference pixel shader and counts the pixels that differ
+(toolkit, `deps/xboxrecomp/tests/nv2a_gpu_backend/ps_reference.hlsl`). `FBOS_TEST_LEVELUP=<secs>` raises player 1's "level gained" flag
 that many seconds after a level loads, so the HUD shows "Press BACK to Level
 Up" for its 4 seconds without playing to the next level (a test switch: no
 points come with it).

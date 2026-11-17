@@ -20,14 +20,18 @@
 - Extras: the four movies on the disc the game never offers (Russian set).
 - Loading a save works (a save converted from the PS2 version loaded, Vault
   Lab 4, 2026-11-14).
+- GPU time per pixel (2026-11-17): the combiners' registers out of an indexed
+  array, one pixel shader per path (screen, fixed-function, combiners by what
+  their stages sample), compiled with the build; the picture bit for bit as
+  before. By Ruby's bar at 6x5 + MSAA 2 the GPU's frame went from 24.6 to
+  6.9 ms, and at that setting the game holds 60 fps (about 44-47 before).
 
 ## Next
-- GPU time per pixel: with the internal resolution (3x3 + 4x MSAA by default)
-  the register-combiner ubershader runs on about ten times the pixels, and in
-  the menu 4x3 + 4x MSAA is down to about 85 fps uncapped. Cheaper pixels --
-  shader variants per combiner setup instead of one ubershader with loops and
-  an indexed register file, or a smaller scale for the scene the game already
-  draws twice as wide -- would make 4x3 hold 60 everywhere.
+- GPU time per pixel, further: a pixel shader per combiner program (the
+  stages' setup known when it is compiled) instead of one combiner shader that
+  reads the setup from constants. Not planned: drawing the scene's targets at
+  their own width -- the HUD target writes depth into the buffer the scene
+  then tests against, so they cannot have depth buffers of their own.
 - Play past Carbon: later chapters have only been reached from a save, not played. Record the pass;
   compare with the PS2 playthrough where one covers the same place.
 - Read the Russian dialogue windows line by line in play.
