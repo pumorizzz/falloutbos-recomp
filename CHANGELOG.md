@@ -12,6 +12,8 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
   `Play.cmd` draws on the GPU by default.
 - 60 fps cap at the flip (`RECOMP_FPS_LIMIT`, `0` turns it off).
 - F8/F10 in the window: record the pad into `saves\pad_path.txt`, play it back.
+- Pad vibration: the game's rumble reports reach the host pad (toolkit, from
+  upstream; `RECOMP_RUMBLE=0` turns it off). Checked against an Xbox 360.
 - Vertex programs of large batches on several threads (`RECOMP_VSH_THREADS`),
   bit for bit as on one: by Ruby's bar, uncapped, 66 -> 130 fps.
 - README: what the fork fixed and the checks.
