@@ -46,6 +46,18 @@ if(FBOS_ABI_CHECK)
     message(STATUS "Callee-saved register check: ON")
 endif()
 
+# A fobos.exe that needs nothing installed (the Steam Deck kit, tools/package.ps1):
+# the C runtime linked in (/MT, no VC++ Redistributable), and the DLLs a run
+# only needs for diagnostics or a movie path Fallout never takes loaded on first
+# use (d3dcompiler_47: RECOMP_GPU_PROF's flatps and PSCHECK; Media Foundation:
+# the host FMV and WMA paths -- the game's movies are Bink). Its own build
+# directory (build-dist), and the exe goes to <build>/dist-bin, not bin\.
+option(FBOS_STATIC_CRT "Static C runtime and delay-loaded diagnostics DLLs (the Steam Deck kit)" OFF)
+if(FBOS_STATIC_CRT AND MSVC)
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+    message(STATUS "Static C runtime (/MT), delay-loaded d3dcompiler_47 and Media Foundation")
+endif()
+
 # ── xboxrecomp runtime libraries ──────────────────────────
 # Point this to your xboxrecomp checkout
 # Setup.cmd puts the toolkit in deps/xboxrecomp; a side-by-side checkout works too.

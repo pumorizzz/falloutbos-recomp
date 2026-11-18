@@ -41,6 +41,22 @@
   toolkit version; then delete the `sub_000A4E60` override.
 - Upstream the image-aliasing claim into xboxrecomp's contiguous allocator.
 
+## Steam Deck and frame skip
+- Check the kit on a Steam Deck OLED (`tools\package.ps1`, README-SteamDeck.txt):
+  the game at 60 under the Performance limit (90 Hz free, 90/45, 45/45, 60/30,
+  40/40), the Tutorial charge at 45 and 30, the pad at once, `fobos.log`. Not run
+  on a Deck yet: Proton, DXVK, gamescope's limiter, the APU's clocks and Steam
+  Input are untested here.
+- The Deck's CPU: the executor (~8 ms here, the transform on 8 threads) and the
+  game (~8 ms) on a Zen 2 at 3.5 GHz with 4 cores may not fit 16.7 ms; then the
+  game itself runs below 60 whatever frame skip does. A task of its own if the
+  Deck's log shows fewer than 600 flips in 10 s with the GPU not the limit (for
+  example: no transform for a skipped frame, at the price of an exact replay).
+- RTSS, and probably NVIDIA's Max Frame Rate, sleep inside Present: the
+  waitable sees a free buffer, Present then blocks the executor, and the game
+  slows as without frame skip. Measure with each; the fallback is a second
+  device with a shared texture.
+
 ## Watch for
 - A stippled floor, and dotted floor tiles with black holes in Carbon: seen in
   early runs only, not in live play with the current build; cause unproven.

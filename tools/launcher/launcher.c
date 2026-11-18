@@ -84,10 +84,19 @@ static const Choice k_ssaa[] = {
  * apart, as on the console; a late frame waits a tick (39 fps shows as 30).
  * No "unlimited": menus and loading screens would run at hundreds of fps and
  * take a held button as several presses. 60 is the top: a higher limit counts
- * as 60. An old fps=120 in launcher.ini falls back to 60. */
+ * as 60. An old fps=120 in launcher.ini falls back to 60.
+ * Below 60 the game still runs at 60 (frame skip, RECOMP_FRAME_SKIP=auto, which
+ * fobos.exe sets on the GPU path): it flips every 1/60 s -- the Tutorial charge
+ * needs that step -- and only that many frames a second are shown. 30 is even
+ * (every other frame); 50, 45 and 40 alternate (45: 1-1-2) and judder a little.
+ * RECOMP_FRAME_SKIP=0 set beforehand: the game itself runs at the limit, as
+ * before. */
 static const Choice k_fps[] = {
-    { "30 fps", "30" },
     { "60 fps", "60" },
+    { "50 fps (game at 60)", "50" },
+    { "45 fps (game at 60)", "45" },
+    { "40 fps (game at 60)", "40" },
+    { "30 fps (game at 60)", "30" },
 };
 
 /* The game's text: game\resx\<name>.sdb, copied from <name>.sdb.en or .sdb.ru
@@ -257,10 +266,16 @@ static void update_hint(void)
 {
     int sx, sy;
     int n = atoi(k_ssaa[selected(s_ssaa)].value);
+    int fps = s_fps ? atoi(k_fps[selected(s_fps)].value) : 60;
     char t[200];
 
     render_scale(&sx, &sy);
-    if (n > 1)
+    if (fps < 60 && 60 % fps)
+        snprintf(t, sizeof t, "The game runs at 60; %d of its frames a second\n"
+                              "are shown, unevenly (%s): a slight judder.\n"
+                              "30 shows every other frame, evenly.",
+                 fps, fps == 45 ? "1-1-2" : fps == 40 ? "1-2" : "1-1-1-1-2");
+    else if (n > 1)
         snprintf(t, sizeof t, "Drawn at %d x %d, averaged to %d x %d.\n"
                               "SSAA and MSAA cost GPU time and video memory.",
                  640 * sx * n, 480 * sy * n, 640 * sx, 480 * sy);
@@ -674,7 +689,7 @@ static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
         make("STATIC", "Frame rate limit:", 0, 16, y, 300, 18, h, 0);
         GetPrivateProfileStringA("launcher", "fps", "60", v, sizeof v, s_ini);
         s_fps = combo(h, ID_FPS, 16, y + 20, k_fps, COUNT(k_fps),
-                      find_value(k_fps, COUNT(k_fps), v, 1));
+                      find_value(k_fps, COUNT(k_fps), v, 0));
         y += 56;
         make("STATIC", "Language:", 0, 16, y, 300, 18, h, 0);
         /* A Unicode combo of its own, so "Русский" shows under any code page. */
@@ -716,7 +731,7 @@ static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
             set_output_choices(aspect_value(), selected(s_output));
             clamp_ssaa();
             update_hint();
-        } else if ((LOWORD(w) == ID_RENDER || LOWORD(w) == ID_SSAA)
+        } else if ((LOWORD(w) == ID_RENDER || LOWORD(w) == ID_SSAA || LOWORD(w) == ID_FPS)
                    && HIWORD(w) == CBN_SELCHANGE) {
             clamp_ssaa();
             update_hint();

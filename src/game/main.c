@@ -389,12 +389,174 @@ static LONG CALLBACK veh_handler(PEXCEPTION_POINTERS ep)
     return EXCEPTION_CONTINUE_SEARCH;
 }
 
+/* ---- running on its own (Steam Deck: "Add a Non-Steam Game" -> fobos.exe) --
+ *
+ * The data are found from the exe: if the current directory has no
+ * game\default.xbe, the exe's directory and then its parent are tried, and
+ * the first that has one becomes the current directory (Steam starts a
+ * non-Steam game in a directory of its own choosing; bin\fobos.exe of a
+ * checkout finds the checkout's game\ above it).
+ *
+ * fobos.ini beside the exe, or else in that data directory: NAME=VALUE lines
+ * (';' starts a comment line) set as environment variables -- only those not
+ * set already, so the environment (Steam's launch options, Play.cmd, the
+ * launcher) always wins. log=<file>: stderr goes into that file (the old one
+ * kept as fobos.prev.log) when nothing else catches it -- a console or
+ * nothing at all; a launcher's or a shell's redirection stays. No fobos.ini:
+ * as before. The checkout's bin\ has none, so development runs are unchanged. */
+
+/* dir\game\default.xbe exists. */
+static int fbos_has_data(const wchar_t *dir)
+{
+    wchar_t p[MAX_PATH + 32];
+    if (wcslen(dir) + 20 >= MAX_PATH + 32)
+        return 0;
+    wcscpy(p, dir);
+    if (*p && p[wcslen(p) - 1] != L'\\')
+        wcscat(p, L"\\");
+    wcscat(p, L"game\\default.xbe");
+    return GetFileAttributesW(p) != INVALID_FILE_ATTRIBUTES;
+}
+
+/* The exe's directory into dir (no trailing backslash); 0 if unknown. */
+static int fbos_exe_dir(wchar_t *dir, DWORD cap)
+{
+    DWORD n = GetModuleFileNameW(NULL, dir, cap);
+    if (!n || n >= cap)
+        return 0;
+    while (n && dir[n - 1] != L'\\' && dir[n - 1] != L'/')
+        n--;
+    if (n)
+        n--;                            /* the separator */
+    dir[n] = 0;
+    return n > 0;
+}
+
+static void fbos_find_data_dir(void)
+{
+    wchar_t dir[MAX_PATH];
+    size_t n;
+    if (fbos_has_data(L".") || !fbos_exe_dir(dir, MAX_PATH))
+        return;
+    if (!fbos_has_data(dir)) {
+        n = wcslen(dir);
+        while (n && dir[n - 1] != L'\\' && dir[n - 1] != L'/')
+            n--;
+        if (!n)
+            return;
+        dir[n - 1] = 0;                 /* the parent */
+        if (!*dir || !fbos_has_data(dir))
+            return;
+    }
+    SetCurrentDirectoryW(dir);
+}
+
+/* stderr goes nowhere a person or a program reads it: a console (a double
+ * click from Explorer), no handle at all (the kit's exe has no console), or
+ * Wine -- under Steam's Proton stderr is Steam's own log or a pipe to the
+ * journal, which nobody reads for the game, and fobos.log is what the Deck
+ * checks look at. */
+static int fbos_stderr_uncaught(void)
+{
+    HANDLE h = GetStdHandle(STD_ERROR_HANDLE);
+    HMODULE nt = GetModuleHandleA("ntdll.dll");
+    DWORD t;
+    if (nt && GetProcAddress(nt, "wine_get_version"))
+        return 1;
+    if (!h || h == INVALID_HANDLE_VALUE)
+        return 1;
+    t = GetFileType(h);
+    return t == FILE_TYPE_UNKNOWN || t == FILE_TYPE_CHAR;
+}
+
+/* One fobos.ini line. Returns the log file named by log=, or NULL. */
+static const char *fbos_ini_line(char *line)
+{
+    char *k = line, *v, *e;
+    while (*k == ' ' || *k == '\t')
+        k++;
+    if (!*k || *k == ';' || *k == '\r' || *k == '\n')
+        return NULL;
+    v = strchr(k, '=');
+    if (!v)
+        return NULL;
+    for (e = v; e > k && (e[-1] == ' ' || e[-1] == '\t'); e--)
+        ;
+    *e = 0;
+    v++;
+    while (*v == ' ' || *v == '\t')
+        v++;
+    for (e = v + strlen(v); e > v && (e[-1] == '\r' || e[-1] == '\n' || e[-1] == ' '
+                                      || e[-1] == '\t'); e--)
+        ;
+    *e = 0;
+    if (!*k)
+        return NULL;
+    if (_stricmp(k, "log") == 0)
+        return *v ? v : NULL;
+    if (!getenv(k))
+        _putenv_s(k, v);
+    return NULL;
+}
+
+static void fbos_load_ini(void)
+{
+    wchar_t dir[MAX_PATH + 16];
+    char line[1024], logname[MAX_PATH];
+    FILE *f = NULL;
+
+    logname[0] = 0;
+    if (fbos_exe_dir(dir, MAX_PATH)) {
+        wcscat(dir, L"\\fobos.ini");
+        f = _wfopen(dir, L"rb");
+    }
+    if (!f)
+        f = fopen("fobos.ini", "rb");
+    if (!f)
+        return;
+    while (fgets(line, sizeof line, f)) {
+        const char *lg = fbos_ini_line(line);
+        if (lg) {
+            strncpy(logname, lg, sizeof logname - 1);
+            logname[sizeof logname - 1] = 0;
+        }
+    }
+    fclose(f);
+    if (logname[0] && fbos_stderr_uncaught()) {
+        remove("fobos.prev.log");
+        rename(logname, "fobos.prev.log");
+        if (!freopen(logname, "w", stderr))
+            return;
+    }
+}
+
 int main(int argc, char **argv)
 {
     const char *path = argc > 1 ? argv[1] : FBOS_XBE_DEFAULT;
     void *xbe_data = NULL;
     size_t xbe_size = 0;
 
+    fbos_find_data_dir();
+    fbos_load_ini();
+    {
+        /* FBOS_INI_CHECK=<NAME>[,<NAME>...]: print the directory the data were
+         * found in and those variables as fobos.ini left them, then exit
+         * (tools/test_fobos_ini.py). Also into stderr, which log= may catch. */
+        const char *chk = getenv("FBOS_INI_CHECK");
+        if (chk) {
+            char cwd[MAX_PATH], names[512], *n, *ctx = NULL;
+            GetCurrentDirectoryA(sizeof cwd, cwd);
+            printf("cwd=%s\n", cwd);
+            fprintf(stderr, "ini-check cwd=%s\n", cwd);
+            strncpy(names, chk, sizeof names - 1);
+            names[sizeof names - 1] = 0;
+            for (n = strtok_s(names, ",", &ctx); n; n = strtok_s(NULL, ",", &ctx))
+                printf("%s=%s\n", n, getenv(n) ? getenv(n) : "<unset>");
+            fflush(stdout);
+            fflush(stderr);
+            return 0;
+        }
+    }
     setvbuf(stdout, NULL, _IONBF, 0);
     setvbuf(stderr, NULL, _IONBF, 0);
     /* Symbols up front: at fault time the process is already in a bad way,
@@ -448,6 +610,16 @@ int main(int argc, char **argv)
      * after about ten minutes, and crashed on the first allocation refused. */
     if (!getenv("RECOMP_HEAP_RECLAIM"))
         _putenv_s("RECOMP_HEAP_RECLAIM", "1");
+    /* Frame skip on the GPU path: the game flips on every 1/60 s tick and a
+     * frame limit (RECOMP_FPS_LIMIT below 60, or an outside one: Steam Deck's,
+     * NVIDIA's, RTSS) only drops frames from the screen -- the Tutorial charge
+     * needs the 16.7 ms step (at 45 or 30 fps of game logic it does not
+     * count). RECOMP_FRAME_SKIP=0 keeps the old way: the game runs at the limit. */
+    {
+        const char *g = getenv("RECOMP_GPU_RASTER");
+        if (!getenv("RECOMP_FRAME_SKIP") && g && *g && strcmp(g, "0") != 0)
+            _putenv_s("RECOMP_FRAME_SKIP", "auto");
+    }
     /* Aspect (tools/aspect.py): FBOS_ASPECT=16:9, 16:10 or 4:3 picks the numbers
      * the generated C reads from the table; 16:9 and 16:10 draw anamorphically
      * into the 640x480 buffer and the window shows the frame at that aspect.

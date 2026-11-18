@@ -21,7 +21,7 @@ game shipped on Xbox and PS2 only; there was never a PC version.
 
 | | |
 |---|---|
-| **Direct3D 11 rendering** | The NV2A's work is drawn on the GPU, register combiners in pixel shaders compiled with the build, presented from a swapchain. Capped at 60 fps, which it holds at 6x5 + MSAA 2 by Ruby's bar (RTX 3080 Ti). |
+| **Direct3D 11 rendering** | The NV2A's work is drawn on the GPU, register combiners in pixel shaders compiled with the build, presented from a swapchain. Capped at 60 fps, which it holds at 6x5 + MSAA 2 by Ruby's bar (RTX 3080 Ti). The game's logic stays at 60 under any frame limit (45, 30, a Steam Deck's or the driver's): only fewer frames are shown, and those not shown are not drawn. |
 | **16:9, up to 4K** | Nemesis2000's widescreen patch mapped onto the USA disc, 16:9, 16:10 or 4:3 chosen in the launcher; the GPU renders at up to 4x the game's resolution (6x5 at 16:10) with SSAA up to 4x and MSAA up to 8x; borderless full screen on F11. |
 | **Russian translation** | Every line of dialogue, quest, menu and hint, item names, and Cyrillic drawn into the game's own fonts. English or Russian is picked in the launcher. |
 | **Launcher** | `bin\FalloutLauncher.exe`: aspect, resolution, SSAA, MSAA, picture size, full screen, frame-rate limit, language. |
@@ -135,6 +135,33 @@ Switching back and forth needs no rebuild.
 `py -3 tools/russian.py status` reports what is installed, and `revert` restores
 the original files. Formats and internals are documented in the script's header.
 
+## Steam Deck
+
+`tools\package.ps1` builds a folder that runs on the Deck by itself once
+`fobos.exe` is added to Steam as a non-Steam game under Proton -- no launcher,
+no variables:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools\package.ps1            # dist\fbos-deck
+powershell -ExecutionPolicy Bypass -File tools\package.ps1 -DryRun    # what it would do
+```
+
+It builds `fobos.exe` in `build-dist` with `-DFBOS_STATIC_CRT=ON` (the C runtime
+linked in; `d3dcompiler_47` and Media Foundation loaded only if ever used), and
+puts beside it `fobos.ini` (1280x800 at 16:10, the GPU at 1x with MSAA 2x,
+frame skip `auto`), `README-SteamDeck.txt` (the steps on the Deck), a copy of
+your `game\` -- in Russian with the movie subtitles by default (`-Lang ru`:
+`tools\russian.py apply` on the copy; `-Lang en` the original) -- and an empty
+`saves\` (`-WithSaves` copies your saves and settings, `saves\UDATA\49500008`, and
+nothing else -- the game makes its disk images itself). `-Scale 2` renders at 2x, `-Pdb` adds the
+symbols for `FBOS_PROFILE`. Your own `game\` is never written. The folder is a
+personal copy of your game data for your own device; `dist\` is not in git.
+
+On the Deck the game's logic runs at 60 whatever the Performance frame limit
+(45, 40, 30 ...): the limit only drops frames from the screen. If the Deck
+cannot keep 60 even so, the game itself runs slower -- `fobos.log` beside the
+exe says how many frames it flipped and showed.
+
 ## Status
 
 **Playable from power-on through the Tutorial and Carbon**, saving to the hard disk
@@ -215,7 +242,9 @@ environment.
 | `RECOMP_FB_SIZE=<w>x<h>` | the picture's size; the window fits it to the screen; the launcher offers 16:10 sizes at Aspect 16:10 |
 | `RECOMP_FB_FULLSCREEN=1` | start in borderless full screen (F11 toggles) |
 | `RECOMP_FB_ASPECT=<n>:<d>` | display aspect; follows `FBOS_ASPECT`, this overrides it |
-| `RECOMP_FPS_LIMIT=<hz>` | frame-rate cap: flips land on a 60 Hz vblank grid at least 60/hz ticks apart, a late frame waits for the next tick (39 fps shows as 30); 60 by default, above 60 counts as 60; `0` lifts it (menus then misbehave) |
+| `RECOMP_FPS_LIMIT=<hz>` | frame-rate cap: 60 by default, above 60 counts as 60; `0` lifts it (menus then misbehave). On the GPU path below 60 the game still runs at 60 and that many frames a second are shown (frame skip, below); with `RECOMP_FRAME_SKIP=0` flips land on a 60 Hz vblank grid at least 60/hz ticks apart and the game itself runs at the limit (a late frame waits for the next tick: 39 fps shows as 30) |
+| `RECOMP_FRAME_SKIP=auto` \| `1` \| `0` | frame skip (toolkit): the game flips every 1/60 s -- the Tutorial charge needs that step -- and only some frames are shown; a frame not shown is not drawn. `auto` (`bin\fobos.exe` sets it on the GPU path when unset): shown at the cadence of `RECOMP_FPS_LIMIT` and only when the swapchain can take a frame without waiting, so an outside limit (Steam Deck, NVIDIA's Max Frame Rate, RTSS) drops frames instead of slowing the game; `1`: the cadence alone; `0`: off. 30 shows every other frame; 50, 45 and 40 alternate (45: 1-1-2) and judder a little. With `auto` the swapchain holds up to 2 frames (`RECOMP_GPU_RASTER_FRAME_LATENCY=1`-`3`): at 1 a heavy frame (6x5 + MSAA 2) missed the next flip in a window and was skipped with no limit at all |
+| `fobos.ini` | beside `fobos.exe` or in the folder with `game\`: `NAME=VALUE` lines (`;` a comment) for the variables above, set only when the environment has not set them; `log=<file>` sends the game's messages there when nothing else catches them. The Steam Deck kit carries one (below); `bin\` has none |
 | `RECOMP_VSH_THREADS=<n>` | threads for vertex programs (default: half the logical processors, at most 16) |
 | `RECOMP_KEYBOARD=1` | keyboard as player 1 |
 | `RECOMP_PAD_RECORD=<file>` | F8 records pad 1 into the file, F10 plays it back (time is kept in frames, so it needs `RECOMP_PB_EXEC`) |
@@ -224,8 +253,9 @@ environment.
 
 Diagnostics: `RECOMP_FB_DUMP=prefix` writes frames as BMP, `RECOMP_WATCHDOG_SECS=N`
 reports where the guest is after N seconds, `RECOMP_GPU_RASTER_PRESENT_DUMP=prefix`
-dumps shown frames from the GPU path, and `FBOS_PROFILE=<start>,<secs>` samples
-every thread. `RECOMP_RASTER_THREADS=N` sets the CPU rasteriser's worker threads
+dumps shown frames from the GPU path, `RECOMP_GPU_RASTER_PRESENT_HZ=<n>` acts out
+an outside frame limit of n Hz for `RECOMP_FRAME_SKIP=auto`, and
+`FBOS_PROFILE=<start>,<secs>` samples every thread. `RECOMP_RASTER_THREADS=N` sets the CPU rasteriser's worker threads
 (default: logical processors - 4), `RECOMP_FB_DUMP_FLIPS=<file>` dumps every flip
 while the file exists (`1`: from the start), `RECOMP_KERNEL_LOG_BUDGET=N` logs
 the first N kernel calls (200 by default), `RECOMP_USB_STATS=1` prints
@@ -295,6 +325,13 @@ and prints SKIP on a machine without game data.
 - The main-menu freeze with `intro.bik` looping has not come back since the
   handle fixes, but it was never reproduced, so the cure is likely, not proven.
 - In the Russian translation, dialogue windows have not yet been checked line by line in play.
+- Frame skip at 50, 45 or 40 fps shows the 60 game frames unevenly (1-1-1-1-2,
+  1-1-2, 1-2): a slight judder; 30 is even.
+- The Steam Deck kit has not been run on a Deck yet (ROADMAP).
+- Where the shown picture changes surface (the chapter intro, Carbon's loading
+  screen) frame skip can guess wrong once: a "stale read" in the log, and that
+  one frame is filtered from the frame shown before instead of the one just
+  skipped (1/60 s older; a dark loading screen).
 
 ## License
 

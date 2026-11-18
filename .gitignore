@@ -32,3 +32,6 @@ __pycache__/
 *.pyc
 deps/
 setup.log
+
+# The Steam Deck kit (tools/package.ps1): a personal copy of your game data
+dist/

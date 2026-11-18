@@ -5,6 +5,31 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
 
 ## [Unreleased]
 
+### Added (frame skip and the Steam Deck kit, 2026-11-17)
+- Frame skip (`RECOMP_FRAME_SKIP`, toolkit): at a frame limit below 60 -- the
+  launcher's 50, 45, 40, 30, or an outside one (Steam Deck, NVIDIA's Max Frame
+  Rate, RTSS) -- the game still flips every 1/60 s and only that many frames
+  are shown, so it no longer slows down and the Tutorial charge counts (it did
+  not at a native 45 or 30). Frames not shown are not drawn: their GPU work is
+  logged and dropped, or drawn when a later frame needs it. `auto` (set by
+  `fobos.exe` on the GPU path) also shows a frame only when the swapchain (now
+  a flip-model one) can take it without waiting. The window says
+  `FPS: 45.0 (game 60.0)`; `RECOMP_FRAME_SKIP=0` keeps the old way.
+- The launcher's frame limit: 60, 50, 45, 40 and 30, the game at 60 in each;
+  the hint says 50/45/40 judder a little (1-1-2 at 45).
+- `fobos.exe` runs on its own: it finds `game\` from the exe's folder (or the
+  one above), and reads `fobos.ini` there (`NAME=VALUE`, the environment wins;
+  `log=` for the messages). `tools/test_fobos_ini.py` checks both.
+- The Steam Deck kit: `tools\package.ps1` builds `fobos.exe` with the static C
+  runtime (`-DFBOS_STATIC_CRT=ON`, `build-dist`) and puts it with `fobos.ini`
+  (1280x800 16:10, GPU 1x, MSAA 2x, frame skip auto), `README-SteamDeck.txt`
+  and a copy of `game\` -- in Russian with the movie subtitles by default --
+  into `dist\fbos-deck` (not in git); `-WithSaves` adds your saves and settings
+  (`saves\UDATA\49500008`), not the disk images the game makes itself.
+- The present and scaling shaders are compiled with the build too (toolkit):
+  at run time only diagnostics compile a shader (Proton's d3dcompiler is
+  Wine's).
+
 ### Added (GPU rendering and play, 2026-10-30 to 2026-11-14)
 - Direct3D 11 render back end (`RECOMP_GPU_RASTER`, toolkit `gpu-rastr`):
   depth, stencil, the register combiners in pixel shaders, presented from a

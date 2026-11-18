@@ -37,7 +37,7 @@ TIMEOUT_S = 240           # Carbon opens ~2 min in; ~10 reports follow, CARBON_R
 CARBON_DDF = "c1\\CRB_1a\\CRB_1a.ddf"
 CARBON_REPORTS = 6        # [GPU] reports after the ddf (~60 s of play)
 CARBON_FLIPS = 300        # flips gained across them; healthy is 500+ even at 15 fps
-GPU_REPORT = re.compile(r"\[GPU\] [\d.]+ fps \((\d+) flips\)")
+GPU_REPORT = re.compile(r"\[GPU\] [\d.]+ fps \((\d+) flips[,)]")   # ", shown N)" since frame skip
 
 
 def flips_after_carbon(s):

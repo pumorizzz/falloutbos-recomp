@@ -218,9 +218,27 @@ target_compile_definitions(fbos PRIVATE
 )
 
 # Output to project root for easy testing
+set(_fbos_bin "${CMAKE_SOURCE_DIR}/bin")
+if(FBOS_STATIC_CRT AND MSVC)
+    # The kit's exe (FBOS_STATIC_CRT, root CMakeLists.txt): beside its build, so
+    # the development bin\fobos.exe is left alone.
+    set(_fbos_bin "${CMAKE_BINARY_DIR}/dist-bin")
+    target_link_options(fbos PRIVATE
+        # No console window: under gamescope a second top-level window can
+        # take the focus, and a double click in Explorer left an empty one.
+        # main() stays the entry (WIN32_EXECUTABLE below makes it a GUI exe);
+        # the messages go to fobos.log (fobos.ini log=).
+        /ENTRY:mainCRTStartup
+        /DELAYLOAD:d3dcompiler_47.dll
+        /DELAYLOAD:mfplat.dll
+        /DELAYLOAD:mfreadwrite.dll
+        /DELAYLOAD:mf.dll)
+    target_link_libraries(fbos PRIVATE delayimp)
+    set_target_properties(fbos PROPERTIES WIN32_EXECUTABLE ON)
+endif()
 set_target_properties(fbos PROPERTIES
     OUTPUT_NAME fobos                   # as the game names its saves (fobos.sav)
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin"
-    RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_SOURCE_DIR}/bin"
-    RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_SOURCE_DIR}/bin"
+    RUNTIME_OUTPUT_DIRECTORY "${_fbos_bin}"
+    RUNTIME_OUTPUT_DIRECTORY_DEBUG "${_fbos_bin}"
+    RUNTIME_OUTPUT_DIRECTORY_RELEASE "${_fbos_bin}"
 )
