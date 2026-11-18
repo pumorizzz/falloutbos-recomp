@@ -36,7 +36,12 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
   PC (RTX 3080 Ti, Ruby's bar, 6x5 + MSAA 2): the GPU span 6.5 -> 2.6-3.0 ms,
   `draw.rc` 5.0-5.4 -> 0.85-0.94 ms; the Deck's settings (1x, MSAA 2): spawn
   span 1.81 -> 1.18 ms, the bar 1.80 -> 1.92 ms (more pixels in that scene).
-  Steam Deck: awaiting a measurement.
+  Steam Deck (Proton Experimental, the kit: 1280x800, 1x, MSAA 2, the whole
+  Tutorial): every draw on an own shader, none on the general one, no state
+  missing; the GPU span 2.0-2.8 ms a frame (p95 at most 3.1 ms). The Tutorial
+  holds 60 in light scenes and drops to 30-40 in heavy ones (the robots,
+  lasers, radiation) with the GPU still at ~2.5 ms of a 33 ms frame: the limit
+  there is the CPU, the pushbuffer executor's thread with the vertex transform.
 - On WARP the own shaders draw bit for bit what the general one does. On NVIDIA
   the main state's own shader differs by 1 in an 8-bit channel in tens of
   pixels a frame (`RECOMP_GPU_RASTER_PSCHECK`; compiler flags do not change it,
@@ -55,7 +60,12 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
   recognised by their exports. `tools\prof_resolve.py <fobos.log> --exe
   <fobos.exe>` names the addresses from `fobos.pdb` on the PC (it checks the
   log's image against the exe and pdb) and sums by function and thread;
-  `tools\test_prof_resolve.py` is its self-check.
+  `tools\test_prof_resolve.py` is its self-check. Known gap: `fobos.pdb`
+  holds only public symbols for the toolkit's libraries, so a toolkit
+  function that is `static` gets the name of the nearest public one before
+  it (code of `nv2a_pb_exec.c` shows as `xbox_XcVerifyPKCS1Signature`, the
+  vertex workers as `nv2a_pb_set_wake`); names of the game's `sub_` functions,
+  of exported toolkit functions and of other modules are right.
 
 ### Added (frame skip and the Steam Deck kit, 2026-11-17)
 - Frame skip (`RECOMP_FRAME_SKIP`, toolkit): at a frame limit below 60 -- the

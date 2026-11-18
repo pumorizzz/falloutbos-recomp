@@ -29,7 +29,8 @@
   uses (`config/gpu_rc_keys.txt`) each draw with a shader compiled for them,
   the rest with the general one. By the bar at 6x5 + MSAA 2 the span went
   6.5 -> 2.6-3.0 ms. On NVIDIA the main state differs by 1 in an 8-bit channel
-  in tens of pixels a frame (accepted). Steam Deck: awaiting a measurement.
+  in tens of pixels a frame (accepted). Steam Deck: no state on the general
+  shader, the GPU span 2.0-2.8 ms a frame.
 
 ## Next
 - Not planned: drawing the scene's targets at
@@ -52,9 +53,12 @@
   Input are untested here.
 - The Deck's CPU: the executor (~8 ms here, the transform on 8 threads) and the
   game (~8 ms) on a Zen 2 at 3.5 GHz with 4 cores may not fit 16.7 ms; then the
-  game itself runs below 60 whatever frame skip does. A task of its own if the
-  Deck's log shows fewer than 600 flips in 10 s with the GPU not the limit (for
-  example: no transform for a skipped frame, at the price of an exact replay).
+  game itself runs below 60 whatever frame skip does. Seen on the Deck
+  (2026-11-19): heavy Tutorial scenes at 30-40 flips a second with the GPU at
+  ~2.5 ms; the executor's thread does ~0.42 of the vertex transform (its share
+  plus the 23 % not split across threads), then `memcmp`/`memset`/hashing. The
+  next task: spread the transform evenly, find those copies (or no transform
+  for a skipped frame, at the price of an exact replay).
 - RTSS, and probably NVIDIA's Max Frame Rate, sleep inside Present: the
   waitable sees a free buffer, Present then blocks the executor, and the game
   slows as without frame skip. Measure with each; the fallback is a second

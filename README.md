@@ -341,7 +341,10 @@ and prints SKIP on a machine without game data.
 - In the Russian translation, dialogue windows have not yet been checked line by line in play.
 - Frame skip at 50, 45 or 40 fps shows the 60 game frames unevenly (1-1-1-1-2,
   1-1-2, 1-2): a slight judder; 30 is even.
-- The Steam Deck kit has not been run on a Deck yet (ROADMAP).
+- On a Steam Deck (Proton Experimental, the kit's 1280x800, 1x, MSAA 2) the
+  Tutorial holds 60 in light scenes and drops to 30-40 in heavy ones (the
+  robots, lasers, radiation). The GPU is busy 2-2.8 ms a frame; the limit is
+  the CPU, the pushbuffer executor's thread with the vertex transform (ROADMAP).
 - Where the shown picture changes surface (the chapter intro, Carbon's loading
   screen) frame skip can guess wrong once: a "stale read" in the log, and that
   one frame is filtered from the frame shown before instead of the one just
