@@ -255,7 +255,15 @@ Diagnostics: `RECOMP_FB_DUMP=prefix` writes frames as BMP, `RECOMP_WATCHDOG_SECS
 reports where the guest is after N seconds, `RECOMP_GPU_RASTER_PRESENT_DUMP=prefix`
 dumps shown frames from the GPU path, `RECOMP_GPU_RASTER_PRESENT_HZ=<n>` acts out
 an outside frame limit of n Hz for `RECOMP_FRAME_SKIP=auto`, and
-`FBOS_PROFILE=<start>,<secs>` samples every thread. `RECOMP_RASTER_THREADS=N` sets the CPU rasteriser's worker threads
+`FBOS_PROFILE=<start>,<secs>` samples every thread (it prints `name @
+module+0xRVA`; `py -3 tools/prof_resolve.py <fobos.log> --exe <fobos.exe>`
+names the addresses from `fobos.pdb` on the PC). `RECOMP_GPU_RASTER_RC_STATS=1`
+lists every register-combiner state with its draws and pixels (a state
+missing from `config/gpu_rc_keys.txt` is also logged as `combiner state with
+no shader of its own`: paste the line into the file and rebuild),
+`RECOMP_GPU_RASTER_RC_GENERIC=1` draws every state with the general shader
+(the own shaders match it bit for bit on WARP and within 1 in an 8-bit
+channel on NVIDIA). `RECOMP_RASTER_THREADS=N` sets the CPU rasteriser's worker threads
 (default: logical processors - 4), `RECOMP_FB_DUMP_FLIPS=<file>` dumps every flip
 while the file exists (`1`: from the start), `RECOMP_KERNEL_LOG_BUDGET=N` logs
 the first N kernel calls (200 by default), `RECOMP_USB_STATS=1` prints

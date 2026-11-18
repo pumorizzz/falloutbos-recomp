@@ -50,4 +50,7 @@ Changing a setting
                                              if the game stays at 60)
     RECOMP_GPU_RASTER_MSAA=4 %command%       smoother edges, more GPU time
     FBOS_PROFILE=60,20 %command%             a CPU profile into fobos.log
-                                             (needs fobos.pdb: package.ps1 -Pdb)
+                                             (needs fobos.pdb: package.ps1 -Pdb);
+                                             it prints name @ module+0xRVA --
+                                             on the PC: py -3 tools\prof_resolve.py
+                                             fobos.log --exe fobos.exe

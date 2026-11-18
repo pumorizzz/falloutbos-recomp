@@ -667,16 +667,22 @@ void recomp_icall_not_code_log(uint32_t va)
 void recomp_unimpl(const char *text, uint32_t va)
 {
     static int printed;
-    const char *trap = getenv("RECOMP_UNIMPL_TRAP");
-    int stop = trap && *trap && *trap != '0';
+    /* Read once: sub_000DED51 (DirectSound) has a cli and an sti around every
+     * read of the APU position, so this runs several times a frame, and
+     * getenv walks the whole environment (long under Proton) on each call. */
+    static int trap = -1;
 
-    if (printed < 50 || stop) {
-        printed++;
-        fprintf(stderr,
-                "[UNIMPL] untranslated instruction REACHED: `%s` at 0x%08X"
-                " (a no-op; set RECOMP_UNIMPL_TRAP=1 to stop here)\n",
-                text, va);
-        fflush(stderr);
+    if (trap < 0) {
+        const char *t = getenv("RECOMP_UNIMPL_TRAP");
+        trap = t && *t && *t != '0';
     }
-    if (stop) abort();
+    if (printed >= 50 && !trap)
+        return;
+    printed++;
+    fprintf(stderr,
+            "[UNIMPL] untranslated instruction REACHED: `%s` at 0x%08X"
+            " (a no-op; set RECOMP_UNIMPL_TRAP=1 to stop here)\n",
+            text, va);
+    fflush(stderr);
+    if (trap) abort();
 }

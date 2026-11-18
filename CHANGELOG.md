@@ -5,6 +5,41 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
 
 ## [Unreleased]
 
+### Changed (combiner shaders by state, 2026-11-18)
+- Each register-combiner state the game uses draws with a pixel shader of its
+  own, compiled with the build from `config/gpu_rc_keys.txt` (nine states:
+  the boot route, Ruby's bar and the Tutorial; the four largest are 91 % of
+  the pixels, per `config/gpu_rc_keys.txt`). Why: on the Steam Deck's RDNA the one general combiner shader costs
+  every pixel the registers of its worst path (`draw.rc` 22-24 ms of a 24 ms
+  span, ~45x a flat shader). A state not in the file is drawn by the general
+  shader, counted in the `[GPURAST]` line and logged as
+  `combiner state with no shader of its own`; add it to the file and rebuild.
+  `RECOMP_GPU_RASTER_RC_STATS=1` lists every state with its draws and pixels,
+  `RECOMP_GPU_RASTER_RC_GENERIC=1` draws everything with the general shader.
+  PC (RTX 3080 Ti, Ruby's bar, 6x5 + MSAA 2): the GPU span 6.5 -> 2.6-3.0 ms,
+  `draw.rc` 5.0-5.4 -> 0.85-0.94 ms; the Deck's settings (1x, MSAA 2): spawn
+  span 1.81 -> 1.18 ms, the bar 1.80 -> 1.92 ms (more pixels in that scene).
+  Steam Deck: awaiting a measurement.
+- On WARP the own shaders draw bit for bit what the general one does. On NVIDIA
+  the main state's own shader differs by 1 in an 8-bit channel in tens of
+  pixels a frame (`RECOMP_GPU_RASTER_PSCHECK`; compiler flags do not change it,
+  it is the driver's compiler); accepted. `RC_GENERIC=1` avoids it.
+
+### Fixed (hot paths, 2026-11-18)
+- `getenv` no longer runs on repeating paths: `recomp_unimpl` (called from
+  DirectSound's `cli`/`sti` pair on every APU position read), the APU MMIO
+  trap (`RECOMP_APU_TRACE`), every draw (`RECOMP_PB_EXEC_VERBOSE`) and every
+  flip (`RECOMP_FB_VA`). Under Proton the environment is long and `getenv`
+  walks all of it. On PC it was 0.019 % of the samples.
+
+### Added (profiler, 2026-11-18)
+- `FBOS_PROFILE` prints every function as `name @ module+0xRVA`, the image's
+  time stamp and PDB id, and each thread's start address; waits in ntdll are
+  recognised by their exports. `tools\prof_resolve.py <fobos.log> --exe
+  <fobos.exe>` names the addresses from `fobos.pdb` on the PC (it checks the
+  log's image against the exe and pdb) and sums by function and thread;
+  `tools\test_prof_resolve.py` is its self-check.
+
 ### Added (frame skip and the Steam Deck kit, 2026-11-17)
 - Frame skip (`RECOMP_FRAME_SKIP`, toolkit): at a frame limit below 60 -- the
   launcher's 50, 45, 40, 30, or an outside one (Steam Deck, NVIDIA's Max Frame

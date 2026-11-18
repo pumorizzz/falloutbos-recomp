@@ -1,0 +1,39 @@
+# Register combiner states of Fallout: Brotherhood of Steel that get a pixel shader of their own.
+#
+# What this is: nv2a_gpu_shaderc (the toolkit's build step, see src/d3d/nv2a_gpu_shaders.cmake,
+# NV2A_GPU_RC_KEYS in CMakeLists.txt) compiles one specialised ps_rc per line below; the D3D11
+# back end draws a combiner state that matches a line with that shader and every other state
+# with the general one (and names it in fobos.log: "combiner state with no shader of its
+# own"). A specialised shader holds only that program's code, so a GPU that assigns registers
+# by the worst path of a shader (the Steam Deck) runs it much faster.
+#
+# Format: nv2a_gpu_rc_key.h of the toolkit, one `rc n=... ctl=... prog=... fin=... tex=...
+# sN=...` line per state; '#' and empty lines are comments. Most pixels first.
+#
+# How to add states: run with RECOMP_GPU_RASTER_RC_STATS=1 (a table of every state with its
+# draws and pixels in the 10 s [GPURAST] report), or take the "combiner state with no shader
+# of its own" lines from fobos.log, and paste the `rc ...` text here; rebuild. Copy the new
+# line into deps/xboxrecomp/tests/nv2a_gpu_backend/rc_keys_test.txt as well, so the toolkit's
+# tests prove that shader bit for bit on WARP.
+#
+# Collected 2026-11-18 on a PC: the boot route to Carbon, Ruby's bar, the Tutorial and a
+# live pass through the Tutorial, the bar and Carbon; 9 states, the same in all four.
+
+# 48.2 % px: Ruby's bar, Carbon boot route, live pass, Tutorial
+rc n=2 ctl=00011102 prog=00001 fin=0000000C:00001C80 tex=0000000A s0=C8C40000:D8D41010:000100C0:000100C0 s1=CC3C0000:38301010:000000C0:000000C0
+# 19.0 % px: Ruby's bar, Carbon boot route, live pass, Tutorial
+rc n=1 ctl=00000001 prog=00001 fin=0000000C:00001C80 tex=00000048 s0=08200000:14200000:00000C00:00000C00
+# 15.6 % px: Ruby's bar, Carbon boot route, live pass, Tutorial
+rc n=1 ctl=00011101 prog=00001 fin=0000000C:00001C80 tex=00000008 s0=C8C40000:D8D41010:000100C0:000100C0
+# 8.5 % px: Ruby's bar, Carbon boot route, live pass, Tutorial
+rc n=1 ctl=00011101 prog=00001 fin=0000000C:00001C80 tex=0000000A s0=C8C40000:D8D41010:000100C0:000100C0
+# 3.5 % px: Ruby's bar, Carbon boot route, live pass, Tutorial
+rc n=1 ctl=00011101 prog=08000 fin=0000000C:00001C80 tex=08000000 s0=CBC40000:DBD41010:000100C0:000100C0
+# 2.3 % px: Ruby's bar, Carbon boot route, live pass, Tutorial
+rc n=1 ctl=00011101 prog=00001 fin=0000000C:00001C80 tex=0000004A s0=C8C40000:D8D41010:000100C0:000100C0
+# 1.5 % px: Ruby's bar, Carbon boot route, live pass, Tutorial
+rc n=1 ctl=00011101 prog=00000 fin=0000000C:00001C80 tex=00000000 s0=C4200000:D4301010:000000C0:000000C0
+# 0.9 % px: Ruby's bar, Carbon boot route, live pass, Tutorial
+rc n=2 ctl=00011102 prog=00021 fin=0000000C:00001C80 tex=00000A0A s0=D8C920C8:D8D930D8:00000C00:00000C00 s1=CCC40000:DCD41010:000100C0:000100C0
+# 0.4 % px: Ruby's bar, Carbon boot route, live pass, Tutorial
+rc n=2 ctl=00011102 prog=00021 fin=0000000C:00001C80 tex=00000A0A s0=38C920C8:38D930D8:00000C00:00000C00 s1=CCC40000:DCD41010:000100C0:000100C0

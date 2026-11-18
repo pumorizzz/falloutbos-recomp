@@ -166,51 +166,231 @@ static void print_guest_stack(void)
  * Every 2 ms, suspend each other thread, read its RIP, name it through the
  * PDB, count. At the end print the top functions, which says whether a slow
  * frame is the lifted game, the pushbuffer executor or the rasteriser.
- * ponytail: a fixed 2048-name table and a linear search; enough for "where
+ * Each line ends in module+RVA of the function (the unwind table's), which
+ * tools/prof_resolve.py resolves on a PC against fobos.pdb: under Wine dbghelp
+ * names only some of them. The image line and the per-thread lines at the end
+ * say which build the RVAs belong to and what each thread is.
+ * ponytail: a fixed 8192-name table and a linear search; enough for "where
  * does the time go", not a real profiler. */
 #include <tlhelp32.h>
 
-typedef struct { char name[112]; unsigned n; } prof_ent;
-static prof_ent g_prof[2048];
+typedef struct { char name[192]; unsigned n; } prof_ent;
+static prof_ent g_prof[8192];
 static unsigned g_prof_used, g_prof_total;
+
+/* A sample in a wait (the filter below, and the busy share of a thread). */
+static int prof_is_wait(const char *name)
+{
+    return strstr(name, "WaitFor") || strstr(name, "DelayExecution")
+        || strstr(name, "RemoveIoCompletion");
+}
+
+/* Where an address is: the module's file name, the address as an RVA, and the
+ * start of its function as an RVA -- from the unwind table (RtlLookupFunctionEntry),
+ * which every x64 function of the lifted game has; without an entry (a leaf
+ * function, or none) the RVA rounded down to 16 and `approx` set. The RVA is what
+ * tools/prof_resolve.py resolves on a PC against fobos.pdb: under Wine dbghelp
+ * names only some of them (and `sub_*` of the generated code not at all). */
+typedef struct { HMODULE mod; char file[64]; DWORD64 rva, fbeg; int approx; } prof_where_t;
+
+static void prof_where(DWORD64 addr, prof_where_t *w)
+{
+    char path[MAX_PATH] = "?";
+    DWORD64 img = 0;
+    PRUNTIME_FUNCTION rf;
+
+    memset(w, 0, sizeof *w);
+    GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                       GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                       (LPCSTR)(uintptr_t)addr, &w->mod);
+    if (w->mod)
+        GetModuleFileNameA(w->mod, path, sizeof(path));
+    snprintf(w->file, sizeof w->file, "%s", strrchr(path, '\\') ? strrchr(path, '\\') + 1 : path);
+    if (!w->mod) {
+        w->rva = w->fbeg = addr;
+        w->approx = 1;
+        return;
+    }
+    w->rva = addr - (DWORD64)(uintptr_t)w->mod;
+    rf = RtlLookupFunctionEntry(addr, &img, NULL);
+    if (rf && img == (DWORD64)(uintptr_t)w->mod) {
+        w->fbeg = rf->BeginAddress;
+    } else {
+        w->fbeg = w->rva & ~(DWORD64)15;
+        w->approx = 1;
+    }
+}
+
+/* The nearest named export at or below an RVA: its name into out (no displacement,
+ * so every address inside one function is one row) and its RVA into *start; 0 when
+ * the module exports nothing near it. dbghelp under Wine gives these DLLs no names
+ * (`<ntdll.dll>`), so the waits would not be told from work. */
+static int prof_export(HMODULE mod, DWORD64 rva, char *out, size_t n, DWORD64 *start)
+{
+    const BYTE *base = (const BYTE *)mod;
+    const IMAGE_NT_HEADERS *nt;
+    IMAGE_DATA_DIRECTORY dir;
+    const IMAGE_EXPORT_DIRECTORY *ex;
+    const DWORD *funcs, *names;
+    const WORD *ords;
+    DWORD i, best = 0, bestname = 0;
+    int found = 0;
+
+    if (!mod)
+        return 0;
+    nt = (const IMAGE_NT_HEADERS *)(base + ((const IMAGE_DOS_HEADER *)base)->e_lfanew);
+    dir = nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT];
+    if (!dir.VirtualAddress || !dir.Size)
+        return 0;
+    ex = (const IMAGE_EXPORT_DIRECTORY *)(base + dir.VirtualAddress);
+    funcs = (const DWORD *)(base + ex->AddressOfFunctions);
+    names = (const DWORD *)(base + ex->AddressOfNames);
+    ords = (const WORD *)(base + ex->AddressOfNameOrdinals);
+    for (i = 0; i < ex->NumberOfNames; i++) {
+        DWORD f = ords[i] < ex->NumberOfFunctions ? funcs[ords[i]] : 0;
+        if (!f || (f >= dir.VirtualAddress && f < dir.VirtualAddress + dir.Size))
+            continue;                       /* forwarded */
+        if (f <= rva && (!found || f > best)) {
+            best = f;
+            bestname = names[i];
+            found = 1;
+        }
+    }
+    if (!found || rva - best > 0x10000)
+        return 0;
+    snprintf(out, n, "%s", (const char *)(base + bestname));
+    *start = best;
+    return 1;
+}
+
+/* module+0xRVA for an address, as the log's text. */
+static void prof_modrva(DWORD64 addr, char *out, size_t n)
+{
+    prof_where_t w;
+    prof_where(addr, &w);
+    snprintf(out, n, "%s+0x%llX", w.file, (unsigned long long)w.rva);
+}
+
+/* Per thread: samples, and those not in a wait. */
+typedef struct { DWORD tid; unsigned n, busy; } prof_thr;
+static prof_thr g_thr[512];
+static unsigned g_nthr;
 
 static void prof_count(DWORD tid, DWORD64 rip, unsigned weight)
 {
     char buf[sizeof(SYMBOL_INFO) + 96];
     SYMBOL_INFO *sym = (SYMBOL_INFO *)buf;
-    DWORD64 disp = 0;
-    const char *name = buf + sizeof(SYMBOL_INFO);   /* fallback text */
+    DWORD64 disp = 0, exp_rva = 0;
+    char name[192], head[128];
+    prof_where_t w;
     unsigned i;
+    int wait;
 
     memset(buf, 0, sizeof(buf));
     sym->SizeOfStruct = sizeof(SYMBOL_INFO);
     sym->MaxNameLen = 95;
+    prof_where(rip, &w);
+    head[0] = 0;
     if (SymFromAddr(GetCurrentProcess(), rip, &disp, sym))
-        name = sym->Name;
-    else {
-        /* No symbol: name the module, so system DLLs still group. */
-        HMODULE mod = NULL;
-        char path[MAX_PATH] = "?";
-        GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
-                           GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-                           (LPCSTR)(uintptr_t)rip, &mod);
-        if (mod)
-            GetModuleFileNameA(mod, path, sizeof(path));
-        snprintf((char *)name, 64, "<%s>",
-                 strrchr(path, '\\') ? strrchr(path, '\\') + 1 : path);
-    }
+        snprintf(head, sizeof head, "%s", sym->Name);
+    else if (prof_export(w.mod, w.rva, name, sizeof name, &exp_rva)) {
+        snprintf(head, sizeof head, "%s!%s", w.file, name);
+        if (w.approx) {                     /* no unwind entry: the export is the start */
+            w.fbeg = exp_rva;
+            w.approx = 0;
+        }
+    } else
+        snprintf(head, sizeof head, "<%s>", w.file);
+    /* Always the module and the function's RVA at the end, whatever dbghelp
+     * called it: the name is what this host knew, the RVA what a PC can
+     * resolve (~ = no unwind entry, rounded). */
+    snprintf(name, sizeof name, "%s @ %s+0x%s%llX", head, w.file, w.approx ? "~" : "",
+             (unsigned long long)w.fbeg);
     {
         /* Keyed by thread too: which thread waits on what is the question. */
-        static char key[112];
+        char key[224];
         snprintf(key, sizeof(key), "%5lu %s", (unsigned long)tid, name);
-        name = key;
+        snprintf(name, sizeof name, "%s", key);
+    }
+    wait = prof_is_wait(name);
+    for (i = 0; i < g_nthr && g_thr[i].tid != tid; i++)
+        ;
+    if (i == g_nthr && g_nthr < 512) {
+        g_thr[g_nthr].tid = tid;
+        g_nthr++;
+    }
+    if (i < g_nthr) {
+        g_thr[i].n += weight;
+        if (!wait)
+            g_thr[i].busy += weight;
     }
     g_prof_total += weight;
     for (i = 0; i < g_prof_used; i++)
         if (!strcmp(g_prof[i].name, name)) { g_prof[i].n += weight; return; }
-    if (g_prof_used < 2048) {
-        strncpy(g_prof[g_prof_used].name, name, 111);
+    if (g_prof_used < 8192) {
+        strncpy(g_prof[g_prof_used].name, name, 191);
         g_prof[g_prof_used++].n = weight;
+    }
+}
+
+/* The image the RVAs belong to: tools/prof_resolve.py checks its exe and pdb
+ * against this line before it names anything. */
+static void prof_print_image(void)
+{
+    HMODULE exe = GetModuleHandleA(NULL);
+    const BYTE *base = (const BYTE *)exe;
+    const IMAGE_NT_HEADERS *nt = (const IMAGE_NT_HEADERS *)(base + ((const IMAGE_DOS_HEADER *)base)->e_lfanew);
+    IMAGE_DATA_DIRECTORY dir = nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_DEBUG];
+    char pdb[96] = "none";
+    char path[MAX_PATH] = "?";
+    DWORD i;
+
+    GetModuleFileNameA(exe, path, sizeof(path));
+    if (dir.VirtualAddress) {
+        const IMAGE_DEBUG_DIRECTORY *dd = (const IMAGE_DEBUG_DIRECTORY *)(base + dir.VirtualAddress);
+        for (i = 0; i < dir.Size / sizeof *dd; i++)
+            if (dd[i].Type == IMAGE_DEBUG_TYPE_CODEVIEW && dd[i].AddressOfRawData) {
+                const BYTE *cv = base + dd[i].AddressOfRawData;
+                if (!memcmp(cv, "RSDS", 4)) {
+                    const GUID *g = (const GUID *)(cv + 4);
+                    DWORD age = *(const DWORD *)(cv + 20);
+                    snprintf(pdb, sizeof pdb,
+                             "{%08lX-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X}-%lu",
+                             g->Data1, g->Data2, g->Data3, g->Data4[0], g->Data4[1],
+                             g->Data4[2], g->Data4[3], g->Data4[4], g->Data4[5],
+                             g->Data4[6], g->Data4[7], (unsigned long)age);
+                }
+                break;
+            }
+    }
+    fprintf(stderr, "[PROF] image %s base 0x%llX size 0x%lX time 0x%lX pdb %s\n",
+            strrchr(path, '\\') ? strrchr(path, '\\') + 1 : path,
+            (unsigned long long)(uintptr_t)exe, (unsigned long)nt->OptionalHeader.SizeOfImage,
+            (unsigned long)nt->FileHeader.TimeDateStamp, pdb);
+}
+
+/* The start address of each thread with samples (what created it), through
+ * NtQueryInformationThread(ThreadQuerySetWin32StartAddress); Wine has it too. */
+static void prof_print_threads(void)
+{
+    typedef LONG (NTAPI *query_fn)(HANDLE, int, PVOID, ULONG, PULONG);
+    query_fn query = (query_fn)(void *)GetProcAddress(GetModuleHandleA("ntdll.dll"),
+                                                      "NtQueryInformationThread");
+    unsigned i;
+
+    for (i = 0; i < g_nthr; i++) {
+        char start[160] = "?";
+        HANDLE h = OpenThread(THREAD_QUERY_INFORMATION, FALSE, g_thr[i].tid);
+        if (h && query) {
+            PVOID addr = NULL;
+            if (query(h, 9, &addr, sizeof addr, NULL) >= 0 && addr)
+                prof_modrva((DWORD64)(uintptr_t)addr, start, sizeof start);
+        }
+        if (h)
+            CloseHandle(h);
+        fprintf(stderr, "[PROF] thread %lu: %u samples, %u busy (%.0f%%), start %s\n",
+                (unsigned long)g_thr[i].tid, g_thr[i].n, g_thr[i].busy,
+                g_thr[i].n ? 100.0 * g_thr[i].busy / g_thr[i].n : 0.0, start);
     }
 }
 
@@ -245,6 +425,7 @@ static DWORD WINAPI profiler(LPVOID arg)
     if (comma) secs = (unsigned)atoi(comma + 1);
     Sleep(start * 1000u);
     fprintf(stderr, "[PROF] sampling for %us\n", secs);
+    prof_print_image();
     timeBeginPeriod(1);
     t0 = GetTickCount();
     {
@@ -313,13 +494,14 @@ static DWORD WINAPI profiler(LPVOID arg)
             g_prof_total);
     /* Fifty-odd threads sit in a wait the whole time and would fill the
      * list ahead of the one thread actually working. */
-    for (i = 0, n = 0; i < g_prof_used && n < 60; i++) {
-        if (strstr(g_prof[i].name, "WaitFor") || strstr(g_prof[i].name, "DelayExecution"))
+    for (i = 0, n = 0; i < g_prof_used && n < 200; i++) {
+        if (prof_is_wait(g_prof[i].name))
             continue;
         fprintf(stderr, "[PROF] %5.1f%%  %6u  %s\n",
                 100.0 * g_prof[i].n / g_prof_total, g_prof[i].n, g_prof[i].name);
         n++;
     }
+    prof_print_threads();
     fflush(stderr);
     return 0;
 }

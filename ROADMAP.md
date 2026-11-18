@@ -25,11 +25,14 @@
   their stages sample), compiled with the build; the picture bit for bit as
   before. By Ruby's bar at 6x5 + MSAA 2 the GPU's frame went from 24.6 to
   6.9 ms, and at that setting the game holds 60 fps (about 44-47 before).
+- A pixel shader per combiner state (2026-11-18): the nine states the game
+  uses (`config/gpu_rc_keys.txt`) each draw with a shader compiled for them,
+  the rest with the general one. By the bar at 6x5 + MSAA 2 the span went
+  6.5 -> 2.6-3.0 ms. On NVIDIA the main state differs by 1 in an 8-bit channel
+  in tens of pixels a frame (accepted). Steam Deck: awaiting a measurement.
 
 ## Next
-- GPU time per pixel, further: a pixel shader per combiner program (the
-  stages' setup known when it is compiled) instead of one combiner shader that
-  reads the setup from constants. Not planned: drawing the scene's targets at
+- Not planned: drawing the scene's targets at
   their own width -- the HUD target writes depth into the buffer the scene
   then tests against, so they cannot have depth buffers of their own.
 - Play past Carbon: later chapters have only been reached from a save, not played. Record the pass;

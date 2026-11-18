@@ -67,6 +67,9 @@ else()
     set(_fbos_toolkit "${CMAKE_CURRENT_SOURCE_DIR}/../xboxrecomp")
 endif()
 set(XBOXRECOMP_DIR "${_fbos_toolkit}" CACHE PATH "Path to xboxrecomp toolkit")
+# The combiner states of this game that get a pixel shader of their own, compiled at build
+# time by the toolkit (nv2a_gpu_shaders.cmake); any other state is drawn by the general one.
+set(NV2A_GPU_RC_KEYS "${CMAKE_CURRENT_SOURCE_DIR}/config/gpu_rc_keys.txt")
 add_subdirectory(${XBOXRECOMP_DIR} ${CMAKE_BINARY_DIR}/xboxrecomp)
 
 # ── Recompiled game executable ─────────────────────────────
