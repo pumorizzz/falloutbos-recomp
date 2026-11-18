@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Russian for Fallout: Brotherhood of Steel (Xbox, USA): text and fonts in game/resx.
 
-    py -3 tools/russian.py [apply|revert|status] [path/to/game/resx]
+    py -3 tools/russian.py [apply|revert|status] [path/to/game/resx [en|ru]]
     py -3 tools/russian.py export [outdir]      English strings, one TSV per .sdb
     py -3 tools/russian.py code-mark <out.c>    regen.sh: the code fixes the C has
 
@@ -43,16 +43,21 @@ widescreen.py touches only its own sites, so they survive its apply and
 revert.
 
 `apply` keeps the originals: <name>.sdb.en, and sfx.clp.en (its size, header
-and table of contents); `revert` puts them and the XBE bytes back. Backups
-and rewritten files go through a temporary file and a rename, and a damaged
-sfx.clp.en is refused rather than written back. It leaves both languages
-installed: every .sdb as .sdb.en and .sdb.ru, default.xbe as default.xbe.en
-and .ru (the same code, the XBE strings in English or Russian), and the
-Russian set in place. bin/FalloutLauncher.exe copies one .sdb set into place
-by its Language choice and sets the bytes in which the two XBEs differ (the
-strings) in default.xbe, leaving its code alone; the fonts and the code fixes
-suit English as well. Exit status: 0 nothing to do, 3 files changed, 1 error
-(nothing written when it is found before the first change).
+and table of contents); `revert` puts them and the XBE bytes back (and removes
+.sdb.en4 and .sdb.ru). Backups and rewritten files go through a temporary file
+and a rename, and a damaged sfx.clp.en is refused rather than written back. It
+leaves both languages installed: every .sdb as .sdb.en (the disc's file, for
+revert), .sdb.en4 (the English with every string on 4 bytes: the talk prompt
+reads a name through a float, which rounds an address to a multiple of 4; the
+launcher's English copies it) and .sdb.ru, default.xbe as default.xbe.en and
+.ru (the same code, the XBE strings in English or Russian). `apply` keeps the
+language in place (English stays English, as .en4; the first apply puts
+Russian), or the one given: `apply [resx [en|ru]]`. bin/FalloutLauncher.exe
+copies one .sdb set into place by its Language choice and sets the bytes in
+which the two XBEs differ (the strings) in default.xbe, leaving its code alone;
+the fonts and the code fixes suit English as well. Exit status: 0 nothing to
+do, 3 files changed, 1 error (nothing written when it is found before the
+first change).
 """
 import os
 import re
@@ -157,6 +162,42 @@ def sdb_write(ents, slots, pad):
     if pad:
         d += b'\0' * (-len(d) % pad)
     return d
+
+
+def sdb_aligned(d):
+    """True if every string of the .sdb d starts on 4 bytes (what sdb_write
+    makes). False for anything that is not a whole .sdb."""
+    try:
+        magic, tbl, cnt = struct.unpack_from('<III', d, 0)
+        if magic != 0x5DB:
+            return False
+        slots = table_slots(cnt)
+        if tbl + slots * 8 > len(d):
+            return False
+        for i in range(slots):
+            h, o = struct.unpack_from('<II', d, tbl + i * 8)
+            if (h or o) and o % 4:
+                return False
+    except (struct.error, ValueError):
+        return False
+    return True
+
+
+def sdb_lang(resx):
+    """'en' if the English set is in place (gtext.sdb is the disc's .en or the
+    aligned .en4), else 'ru': the Russian set, an unknown file, or no .en yet
+    (the first apply). One language for the .sdb files and the XBE strings."""
+    p = os.path.join(resx, 'gtext.sdb')
+    try:
+        cur = read_file(p)
+        for s in ('.en', '.en4'):
+            if s == '.en' and not os.path.exists(p + '.en'):
+                return 'ru'
+            if os.path.exists(p + s) and read_file(p + s) == cur:
+                return 'en'
+    except OSError:
+        pass
+    return 'ru'
 
 
 def sdb_probe(h):
@@ -506,11 +547,13 @@ def names():
     return mod.NAMES
 
 
-def sdb_one(path, tr, by_text=False, extra=None):
+def sdb_one(path, tr, by_text=False, extra=None, lang='ru'):
     """Rebuild <path> from <path>.en with tr (hash -> Russian, or English text
-    -> Russian when by_text), written in cp1251 code points. Keeps the
-    Russian set as <path>.ru too: the launcher copies the .en or the .ru set
-    over the .sdb before each start. (changed, translated, total)"""
+    -> Russian when by_text), written in cp1251 code points. Keeps the Russian
+    set as <path>.ru and the disc's English with every string on 4 bytes as
+    <path>.en4; .en stays the disc's file (revert). Puts the `lang` set in
+    place: the launcher copies one of them over the .sdb before each start.
+    (changed, translated, total)"""
     orig = path + '.en'
     try:
         if not os.path.exists(orig):
@@ -521,6 +564,8 @@ def sdb_one(path, tr, by_text=False, extra=None):
     except ValueError as e:
         raise ValueError(f'{orig if os.path.exists(orig) else path}: {e}; '
                          'restore the .sdb from the disc and delete its .en') from None
+    pad = 2048 if len(d) % 2048 == 0 else 0
+    en4 = sdb_write(ents, slots, pad)          # no new keys: English has no SUB_*
     if not by_text:
         known = {h for _, h, _ in ents}
         stray = [h for h in tr if h not in known]
@@ -530,13 +575,17 @@ def sdb_one(path, tr, by_text=False, extra=None):
     done = sum(1 for _, h, s in ents if key(h, s) in tr)
     ents = [(i, h, to_game(tr[key(h, s)]) if key(h, s) in tr else s) for i, h, s in ents]
     ents, slots = sdb_insert(ents, slots, extra)       # new keys: the movie subtitles
-    out = sdb_write(ents, slots, 2048 if len(d) % 2048 == 0 else 0)
-    changed = read_file(path) != out
-    if changed:
-        write_file(path, out)
-    if not os.path.exists(path + '.ru') or read_file(path + '.ru') != out:
-        write_file(path + '.ru', out)
-    return int(changed), done, len(ents)
+    out = sdb_write(ents, slots, pad)
+    want = en4 if lang == 'en' else out
+    changed = 0
+    if read_file(path) != want:
+        write_file(path, want)
+        changed = 1
+    for p, data in ((path + '.ru', out), (path + '.en4', en4)):
+        if not os.path.exists(p) or read_file(p) != data:
+            write_file(p, data)
+            changed = 1
+    return changed, done, len(ents)
 
 
 def translations():
@@ -558,14 +607,25 @@ def translations():
     return out, names()
 
 
-def sdb_apply(resx, pre):
+def sdb_status(resx):
+    """(names of the SDBS that are the Russian set, .sdb whose strings all
+    start on 4 bytes, .sdb that exist), for status."""
+    paths = [p for p in [os.path.join(resx, n) for n in SDBS] + level_sdbs(resx) if os.path.exists(p)]
+    aligned = sum(1 for p in paths if sdb_aligned(read_file(p)))
+    ru = [n for n in SDBS if os.path.exists(os.path.join(resx, n + '.ru'))
+          and read_file(os.path.join(resx, n)) == read_file(os.path.join(resx, n + '.ru'))]
+    return ru, aligned, len(paths)
+
+
+def sdb_apply(resx, pre, lang='ru'):
     changed = 0
     sdb, nm = pre
+    print('  text in place: ' + ('English (.en4, every string on 4 bytes)' if lang == 'en' else 'Russian'))
     for name in SDBS:
         if name not in sdb:
             continue
         tr, extra = sdb[name]
-        c, done, total = sdb_one(os.path.join(resx, name), tr, extra=extra)
+        c, done, total = sdb_one(os.path.join(resx, name), tr, extra=extra, lang=lang)
         changed += c
         print(f'  {name}: {done} of {total} strings in Russian'
               + (f', subtitles for {len(extra) - len(GTEXT_NEW_KEYS)} movies'
@@ -573,7 +633,7 @@ def sdb_apply(resx, pre):
     done = total = 0
     levels = level_sdbs(resx)
     for p in levels:
-        c, dn, tt = sdb_one(p, nm, by_text=True)
+        c, dn, tt = sdb_one(p, nm, by_text=True, lang=lang)
         changed += c
         done += dn
         total += tt
@@ -942,16 +1002,19 @@ def xbe_offset(d, va):
     return None
 
 
-def xbe_patch(xbe, to_new, dry=False):
+def xbe_patch(xbe, to_new, dry=False, text_new=None):
     """1 if the file changed (or would, when dry), 0 if it already was so,
-    -1 if not this image"""
+    -1 if not this image. The code sites go to the patch when to_new; the
+    string sites likewise, or by text_new when that is given (the code fixes
+    suit English too, the strings follow the language in place)."""
     d = bytearray(read_file(xbe))
     code = text = False
     sites = [(s, True) for s in XBE_SITES] + [(s, False) for s in xbe_string_sites(xbe)]
     for (va, orig, new), is_code in sites:
         o = xbe_offset(d, va)
         here = bytes(d[o:o + len(orig)]) if o is not None else b''
-        want, other = (new, orig) if to_new else (orig, new)
+        to = to_new if is_code or text_new is None else text_new
+        want, other = (new, orig) if to else (orig, new)
         if here == want:
             continue
         if here != other and (is_code or here not in xbe_earlier(xbe, va, len(orig))):
@@ -959,7 +1022,8 @@ def xbe_patch(xbe, to_new, dry=False):
             return -1
     for (va, orig, new), is_code in sites:
         o = xbe_offset(d, va)
-        want = new if to_new else orig
+        to = to_new if is_code or text_new is None else text_new
+        want = new if to else orig
         if d[o:o + len(want)] != want:
             d[o:o + len(want)] = want
             code |= is_code
@@ -968,12 +1032,13 @@ def xbe_patch(xbe, to_new, dry=False):
         return 1 if code or text else 0
     if code or text:
         write_file(xbe, d)
-    state = 'patched' if to_new else 'original'
+    tstate = 'patched' if (to_new if text_new is None else text_new) else 'original'
+    cstate = 'patched' if to_new else 'original'
     if text:
         print(f'  default.xbe: {len(XBE_TEXT)} strings (inventory, loading screen, level-up, disc error) '
-              f'and the credits ({state})')
+              f'and the credits ({tstate})')
     if code:
-        print(f'  default.xbe: wide sprintf copies whole characters ({state}); '
+        print(f'  default.xbe: wide sprintf copies whole characters ({cstate}); '
               'regenerate and build (./regen.sh --disasm, cmake --build)')
     return 1 if code or text else 0
 
@@ -985,8 +1050,9 @@ def xbe_variants(xbe):
     start-up; the launcher sets
     just the differing bytes in default.xbe by its Language choice, so a
     later widescreen.py apply/revert there stays, and nothing needs
-    regenerating."""
+    regenerating. Returns how many of the two files it wrote."""
     d = bytearray(read_file(xbe))
+    wrote = 0
     for lang in ('en', 'ru'):
         for va, orig, new in xbe_string_sites(xbe):
             o = xbe_offset(d, va)
@@ -994,6 +1060,8 @@ def xbe_variants(xbe):
         out = xbe + '.' + lang
         if not os.path.exists(out) or read_file(out) != d:
             write_file(out, d)
+            wrote += 1
+    return wrote
 
 
 def code_mark(xbe, out):
@@ -1050,10 +1118,8 @@ def run(argv):
               '(default.xbe beside it)')
         return 1
     if cmd == 'status':
-        def same(a, b):
-            return os.path.exists(b) and open(a, 'rb').read() == open(b, 'rb').read()
         # the launcher may have copied either set into place
-        sdb = [n for n in SDBS if same(os.path.join(resx, n), os.path.join(resx, n + '.ru'))]
+        sdb, aligned, total = sdb_status(resx)
         fnt = os.path.exists(os.path.join(resx, 'sfx.clp.en'))
         d = open(xbe, 'rb').read()
         strings = xbe_string_sites(xbe)
@@ -1066,7 +1132,10 @@ def run(argv):
 
         def patched(sites):
             return sum(1 for va, _, new in sites if d[xbe_offset(d, va):xbe_offset(d, va) + len(new)] == new)
-        print(f'russian: text {"in Russian: " + ", ".join(sdb) if sdb else "English"}; '
+        stale = ('; run apply again (names in "Talk to")'
+                 if os.path.exists(os.path.join(resx, 'gtext.sdb.en')) and aligned < total else '')
+        print(f'russian: text {"in Russian: " + ", ".join(sdb) if sdb else "English"}, '
+              f'every string on 4 bytes in {aligned}/{total} .sdb{stale}; '
               f'fonts {"with Cyrillic" if fnt else "original"}; '
               f'default.xbe code fixes {patched(XBE_SITES)}/{len(XBE_SITES)}, '
               f'XBE strings and credits in Russian {patched(strings)}/{len(strings)}')
@@ -1075,15 +1144,20 @@ def run(argv):
         # Everything that can refuse does so before the first write: the XBE
         # (another disc), the translations (file:line), then the fonts (no
         # Pillow, damaged backup).
-        if xbe_patch(xbe, True, dry=True) < 0:
+        lang = argv[3] if len(argv) > 3 else sdb_lang(resx)
+        if lang not in ('en', 'ru'):
+            print(__doc__)
+            return 1
+        tn = lang == 'ru'
+        if xbe_patch(xbe, True, dry=True, text_new=tn) < 0:
             return 1
         pre = translations()
         f = fonts_apply(resx)
         if f < 0:
             return 1
-        x = xbe_patch(xbe, True)
-        xbe_variants(xbe)
-        n = sdb_apply(resx, pre) + f + x
+        x = xbe_patch(xbe, True, text_new=tn)
+        n = xbe_variants(xbe)
+        n += sdb_apply(resx, pre, lang) + f + x
         print('russian: applied' if n else 'russian: nothing to do')
         return 3 if n else 0
     if cmd == 'revert':
@@ -1100,14 +1174,15 @@ def run(argv):
                 try:
                     sdb_read(read_file(p + '.en'))  # a cut-off backup is refused, not copied
                 except ValueError as e:
-                    # left as it is, .en and .ru included; the rest still go back
+                    # left as it is, .en and .ru included (and .en4); the rest still go back
                     damaged.append(f'{p}.en ({e})')
                     continue
                 write_file(p, read_file(p + '.en'))
                 os.remove(p + '.en')
                 n += 1
-            if os.path.exists(p + '.ru'):
-                os.remove(p + '.ru')
+            for s in ('.ru', '.en4'):
+                if os.path.exists(p + s):
+                    os.remove(p + s)
         if damaged:
             print('russian: these backups are damaged and their .sdb left as they are; '
                   'restore each .sdb from the disc and delete its .en:')

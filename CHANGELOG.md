@@ -5,6 +5,23 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
 
 ## [Unreleased]
 
+### Fixed (talk prompt names in English, 2026-11-18)
+- Jesse and Richard in Carbon showed only "Talk to" on the English text. The
+  prompt hands the name's address to the text routine as a float, which rounds
+  an address of 32-64 MB to a multiple of 4 (fixed for Russian in `0bbbac6`);
+  `CRB_1a.sdb` from the disc starts both names 2 bytes past a multiple of 4,
+  and the port loads the file a little above 32 MB.
+- `py -3 tools/russian.py apply` now also writes `<name>.sdb.en4`, the same
+  English with every string on 4 bytes; `<name>.sdb.en` stays the disc's file
+  for `revert`. The launcher's English copies `.en4` (`.en` when there is none).
+- `apply` keeps the language in place (English stays English, as `.en4`; the first
+  apply still puts Russian), or takes it as `apply <resx> en|ru`. `status`
+  counts the aligned `.sdb`, `revert` removes `.en4`. `package.ps1` follows.
+- Run `py -3 tools/russian.py apply` again. On a purely English install `apply`
+  also patches the fonts and the code of `default.xbe`, so follow it with
+  `./regen.sh --disasm` and a build; the launcher has to be rebuilt too (an
+  old one copies `.en` for English).
+
 ### Changed (combiner shaders by state, 2026-11-18)
 - Each register-combiner state the game uses draws with a pixel shader of its
   own, compiled with the build from `config/gpu_rc_keys.txt` (nine states:

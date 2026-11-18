@@ -206,22 +206,26 @@ if ($LASTEXITCODE -ge 8) { Fail "robocopy of game\ failed ($LASTEXITCODE)" }
 
 $resx = Join-Path $Out 'game\resx'
 if ($Lang -eq 'ru') {
-    Say "--> Russian in the copy (tools\russian.py apply $resx)"
-    & py -3 (Join-Path $Root 'tools\russian.py') apply $resx
+    # An explicit ru: without it apply keeps the language the copy has in place.
+    Say "--> Russian in the copy (tools\russian.py apply $resx ru)"
+    & py -3 (Join-Path $Root 'tools\russian.py') apply $resx ru
     if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3) { Fail "russian.py apply failed ($LASTEXITCODE)" }
 } else {
-    # As the launcher's English (launcher.c set_language): the .en set in place
-    # of the three text files and of every level's own names, and of
-    # default.xbe only the bytes where its .en and .ru differ (the strings) --
+    # As the launcher's English (launcher.c set_language): the .en4 set (every
+    # string on 4 bytes), or .en when there is no .en4, in place of the three
+    # text files and of every level's own names, and of default.xbe only the bytes where its .en and .ru differ (the strings) --
     # the rest of the XBE stays as it is.
     foreach ($n in 'gtext.sdb', 'global.sdb', 'deftexte.sdb') {
-        $en = Join-Path $resx "$n.en"
+        $en = Join-Path $resx "$n.en4"
+        if (-not (Test-Path $en)) { $en = Join-Path $resx "$n.en" }
         if (Test-Path $en) { Copy-Item $en (Join-Path $resx $n) -Force }
     }
     foreach ($c in Get-ChildItem $resx -Directory -Filter 'c?') {
         foreach ($l in Get-ChildItem $c.FullName -Directory) {
             $sdb = Join-Path $l.FullName "$($l.Name).sdb"
-            if (Test-Path "$sdb.en") { Copy-Item "$sdb.en" $sdb -Force }
+            $src = "$sdb.en4"
+            if (-not (Test-Path $src)) { $src = "$sdb.en" }
+            if (Test-Path $src) { Copy-Item $src $sdb -Force }
         }
     }
     $xbe = Join-Path $Out 'game\default.xbe'

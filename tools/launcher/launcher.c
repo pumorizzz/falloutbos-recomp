@@ -99,10 +99,10 @@ static const Choice k_fps[] = {
     { "30 fps (game at 60)", "30" },
 };
 
-/* The game's text: game\resx\<name>.sdb, copied from <name>.sdb.en or .sdb.ru
- * before the start. tools/russian.py apply leaves both sets there (the fonts
- * it patches and its XBE fix suit English too); without it there is no .ru
- * and the choice stays English. */
+/* The game's text: game\resx\<name>.sdb, copied from <name>.sdb.en4 (English;
+ * .sdb.en when there is no .en4) or .sdb.ru before the start. tools/russian.py
+ * apply leaves all of them there (the fonts it patches and its XBE fix suit
+ * English too); without it there is no .ru and the choice stays English. */
 static const char *const k_sdb[] = { "gtext.sdb", "global.sdb", "deftexte.sdb" };
 static const char *const k_lang[] = { "en", "ru" };
 
@@ -312,6 +312,21 @@ static int russian_present(void)
     char p[MAX_PATH];
     snprintf(p, sizeof p, "%s\\game\\resx\\gtext.sdb.ru", s_root);
     return GetFileAttributesA(p) != INVALID_FILE_ATTRIBUTES;
+}
+
+/* The file to copy over dst for lang: <dst>.<lang>, and for English
+ * <dst>.en4 first -- tools/russian.py apply's English with every string on
+ * 4 bytes ("Talk to %s" reads the name through a float, which rounds an
+ * address of 32-64 MB to a multiple of 4). .en is the disc's own file, kept
+ * for revert; an install from before .en4 has only it. */
+static void lang_source(char *src, size_t n, const char *dst, const char *lang)
+{
+    if (strcmp(lang, "en") == 0) {
+        snprintf(src, n, "%s.en4", dst);
+        if (GetFileAttributesA(src) != INVALID_FILE_ATTRIBUTES)
+            return;
+    }
+    snprintf(src, n, "%s.%s", dst, lang);
 }
 
 /* src over dst when src is there: 1, unless the copy failed (said why). */
@@ -540,8 +555,8 @@ static int set_language(HWND owner)
     if (!set_xbe_strings(owner, lang))
         return 0;
     for (i = 0; i < COUNT(k_sdb); i++) {
-        snprintf(src, sizeof src, "%s\\game\\resx\\%s.%s", s_root, k_sdb[i], lang);
         snprintf(dst, sizeof dst, "%s\\game\\resx\\%s", s_root, k_sdb[i]);
+        lang_source(src, sizeof src, dst, lang);
         if (!copy_set_file(owner, src, dst))
             return 0;
     }
@@ -565,7 +580,7 @@ static int set_language(HWND owner)
                         continue;
                     snprintf(dst, sizeof dst, "%s\\game\\resx\\%s\\%s\\%s.sdb", s_root,
                              c.cFileName, l.cFileName, l.cFileName);
-                    snprintf(src, sizeof src, "%s.%s", dst, lang);
+                    lang_source(src, sizeof src, dst, lang);
                     if (!copy_set_file(owner, src, dst)) {
                         FindClose(hl);
                         FindClose(hc);

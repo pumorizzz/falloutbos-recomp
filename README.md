@@ -83,8 +83,9 @@ cmake --build build-msvc --config Release
 ```
 
 Then choose **Русский** under *Language* in the launcher. **English is the
-launcher's default**; `apply` itself leaves the Russian set in place, so
-`Play.cmd` runs in Russian until the launcher has been started with English.
+launcher's default**; the first `apply` leaves the Russian set in place, so
+`Play.cmd` runs in Russian until the launcher has been started with English; a
+later `apply` keeps whichever language is in place.
 Switching back and forth needs no rebuild.
 
 - **Text:** all of `gtext.sdb` (dialogue, quests, menus, hints, subtitles), the
@@ -122,10 +123,12 @@ Switching back and forth needs no rebuild.
   glyph index and the prompt was cut to "...". Ten 4-byte sites in `default.xbe`,
   each checked against the original; that is why the regenerate-and-build step is
   needed.
-- **Both languages stay installed.** Every `.sdb` has `.sdb.en` and `.sdb.ru` side
-  by side, and `default.xbe` has `.en` and `.ru` (the same code, the XBE's
-  strings in either language); before each start the launcher copies the chosen
-  `.sdb` set into place and sets only those strings in `default.xbe`, so the
+- **Both languages stay installed.** Every `.sdb` has `.sdb.en` (the disc's
+  file), `.sdb.en4` (the same English with every string on 4 bytes, which is what
+  the launcher's English copies: the talk prompt reads the name through a float)
+  and `.sdb.ru` side by side, and `default.xbe` has `.en` and `.ru` (the same
+  code, the XBE's strings in either language); before each start the launcher
+  copies the chosen `.sdb` set into place and sets only those strings in `default.xbe`, so the
   code in it (16:9 or 4:3) stays as it is.
 - **Stays English:** level names (save names), the folder name of each level
   (`TUTORIAL` is a path), the compass letters (N/S/E/W), the drive name on the
@@ -325,6 +328,9 @@ and prints SKIP on a machine without game data.
 
 ### Known issues
 
+- Without `py -3 tools/russian.py apply` the disc's English text is not aligned
+  to 4 bytes, and the names of Jesse and Richard in Carbon come out empty in
+  the "Talk to" prompt.
 - Lines (`BEGIN_END` 2-4) are not drawn; nothing played so far uses them.
 - On the CPU rasteriser (`RECOMP_GPU_RASTER=0`), triangles cut at the near
   plane can come out as a "camera wedge"
