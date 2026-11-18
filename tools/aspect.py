@@ -13,14 +13,24 @@ module takes the 11 places out of the generated C instead:
   * neutral: copies the XBE with the 11 places put back to their 4:3 bytes
     (whichever state the input is in), so a patched and an unpatched
     default.xbe give the same C. regen.sh runs the whole pipeline on that copy.
-  * recomp: runs `tools.recomp` with a hook on the lifter: at each of the 11
-    places the one instruction that carries the aspect-dependent number is
-    lifted as a read of g_fbos_aspect_site[i]. The toolkit itself is not
-    changed. A place that does not hold the 4:3 instruction stops the run.
+  * recomp: runs `tools.recomp` with a hook on the lifter: at each of the 13
+    places (the 11 of widescreen.py and PORT_SITES) the one instruction that
+    carries the aspect-dependent number is lifted as a read of
+    g_fbos_aspect_site[i]; at the two port places the x is multiplied by the
+    table's value. The toolkit itself is not changed. A place that does not
+    hold the 4:3 instruction stops the run.
   * table: writes gen/recomp_fbos_aspect.c, the table, one set per FBOS_ASPECT
     value (4:3, 16:9 -- Nemesis2000's numbers -- and 16:10, worked out by the
     same rule), and fbos_aspect_select() that main.c calls at start-up with
     the choice made by FBOS_ASPECT.
+
+The table has 13 entries: the 11 places of widescreen.py, then 2 places only
+the port has (PORT_SITES): the x placement of the inventory's 3D models
+(sub_00032A70: the character and the bar behind them; sub_00032DB0: the item
+models), scaled by anchor_scale() so they stand where they do at 4:3. This is
+where the port differs from Nemesis2000's patch: widescreen.py apply (for an
+Xbox) stays as Nemesis made it, and there the models stand left of their 4:3
+place.
 
 Exit status: 0 done, 1 failed.
 """
@@ -32,7 +42,7 @@ import sys
 
 import widescreen as ws
 
-N = len(ws.SITES)            # 11
+N_WS = len(ws.SITES)         # 11: widescreen.py's places
 RDATA_496 = 0x000E68C4
 
 # FBOS_ASPECT's values, in table order: fbos_aspect_select(i) and main.c's
@@ -68,7 +78,21 @@ def value_at(kind, v43, n, d):
     return _bits(Fraction(_f32(v43)) * Fraction(4, 3) / Fraction(n, d))
 
 
+def anchor_scale(n, d):
+    """k = 320 / the projection's x at aspect n:d = (n/d) / (4/3): 1 at 4:3,
+    4/3 at 16:9, 1.2 at 16:10. The inventory's 3D models (the character and
+    the bar behind them, the item models) are placed by a translation tx in
+    view space, so on screen x = m00' * (tx + dx) / z with m00' the squeezed
+    widescreen m00. Scaling tx by k gives
+        x = m00' * (k * tx + dx) / z = m00 * tx / z + m00' * dx / z:
+    the model stands where it does at 4:3 and keeps the widescreen
+    proportions."""
+    return _bits(Fraction(n, d) / Fraction(4, 3))
+
+
 def _role(s):
+    if s[1].startswith('anchor_'):
+        return 'UI model x placement'
     if s[1] == 'push':
         return 'camera aspect' if s[3] == CAMERA_43 else 'projection x'
     return 'matrix m00'
@@ -89,6 +113,20 @@ def _site(va, orig, new):
 # column 3 + i is ASPECTS[i]; 16:9 is Nemesis2000's bytes, 16:10 value_at()
 SITES = [s + (value_at(s[1], s[3], 16, 10),)
          for s in (_site(va, o, n) for va, o, n, _ in ws.SITES)]
+
+# Port-only places (not in widescreen.py, so not on an Xbox): the x of the
+# translation that places a UI model, multiplied by anchor_scale().
+# (hook_va, kind, disp) + one value per ASPECTS entry.
+PORT_SITES = [
+    # sub_00032A70, the inventory's right panel: the character and the bar's
+    # mesh; movss [esp+0x14],xmm0 stores x before call 0x6F390 (out, x, y, z)
+    (0x00032AC1, 'anchor_movss', 0x14),
+    # sub_00032DB0, the item models in the list: mov eax,[esp+0x34] loads x
+    # before call 0x6F390
+    (0x00032EC0, 'anchor_mov', 0x34),
+]
+SITES += [s + tuple(anchor_scale(n, d) for _, n, d in ASPECTS) for s in PORT_SITES]
+N = len(SITES)               # 13: 0..10 widescreen.py, 11 character, 12 items
 
 
 def neutral_bytes(d):
@@ -129,7 +167,7 @@ def neutral(src, dst):
         return 1
     was = '16:9' if ws.state(d) == '16x9' else '4:3'
     _write_if_changed(dst, out)
-    print(f'aspect: generating from the {was} image, its {N} sites at 4:3 ({dst})')
+    print(f'aspect: generating from the {was} image, its {N_WS} sites at 4:3 ({dst})')
     return 0
 
 
@@ -148,6 +186,16 @@ def install(lifter_cls, fmt_mem):
         if kind == 'push':
             ok = (insn.mnemonic == 'push' and len(ops) == 1 and ops[0].type == 'imm'
                   and (ops[0].imm & 0xFFFFFFFF) == v43 and insn.size == 5)
+        elif kind == 'anchor_movss':
+            ok = (insn.mnemonic == 'movss' and len(ops) == 2 and ops[0].type == 'mem'
+                  and ops[0].mem_base == 'esp' and not ops[0].mem_index
+                  and ops[0].mem_disp == disp and ops[1].type == 'reg'
+                  and ops[1].reg == 'xmm0')
+        elif kind == 'anchor_mov':
+            ok = (insn.mnemonic == 'mov' and len(ops) == 2 and ops[0].type == 'reg'
+                  and ops[0].reg == 'eax' and ops[1].type == 'mem'
+                  and ops[1].mem_base == 'esp' and not ops[1].mem_index
+                  and ops[1].mem_disp == disp)
         else:
             ok = (insn.mnemonic == 'movss' and len(ops) == 2 and ops[0].type == 'mem'
                   and ops[0].mem_base == 'esp' and not ops[0].mem_index
@@ -164,6 +212,15 @@ def install(lifter_cls, fmt_mem):
         if kind == 'push':
             return [ext, f"PUSH32(esp, g_fbos_aspect_site[{i}]); "
                          f"/* push 0x{v43:08X} at 4:3 */"]
+        if kind == 'anchor_movss':
+            return [ext, f"MEMF({fmt_mem(ops[0])}) = xmm0.f[0] * "
+                         f"XMM_SCALAR_BITS(g_fbos_aspect_site[{i}]).f[0]; "
+                         f"/* movss: UI model x placement x 320/projection x */"]
+        if kind == 'anchor_mov':
+            return [ext, f"{{ RecompXmm _fbos_x = XMM_SCALAR_BITS(MEM32({fmt_mem(ops[1])})); "
+                         f"_fbos_x.f[0] *= XMM_SCALAR_BITS(g_fbos_aspect_site[{i}]).f[0]; "
+                         f"eax = _fbos_x.u[0]; }} "
+                         f"/* mov: UI model x placement x 320/projection x */"]
         return [ext, f"MEM32({fmt_mem(ops[0])}) = g_fbos_aspect_site[{i}]; "
                      f"/* movss m00, 0x{v43:08X} at 4:3 */"]
 
@@ -194,8 +251,9 @@ def recomp(args):
 def table_c():
     lines = [
         '/* Generated by tools/aspect.py table (regen.sh). Do not edit.',
-        ' * The 11 aspect-dependent numbers of tools/widescreen.py, one set per',
-        ' * FBOS_ASPECT value, read by the generated C as g_fbos_aspect_site[i];',
+        ' * The 11 aspect-dependent numbers of tools/widescreen.py + 2 port-only',
+        ' * sites (the x placement of UI models, sub_00032A70/sub_00032DB0), one',
+        ' * set per FBOS_ASPECT value, read by the generated C as g_fbos_aspect_site[i];',
         ' * main.c picks the set at start-up through fbos_aspect_select(). */',
         '#include <stdint.h>',
         '',

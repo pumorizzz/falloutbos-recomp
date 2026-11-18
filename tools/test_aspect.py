@@ -11,6 +11,11 @@ wrong silently: a renamed lifter hook (the sites stay literals), a wrong hook
 address (a neighbouring instruction is replaced), a normalised XBE that is
 not the same for a patched and an unpatched image.
 
+The table holds those 11 places + 2 places only the port has (aspect.PORT_SITES):
+the x placement of the inventory's 3D models (0x32AC1 the character and the
+bar, 0x32EC0 the item models), scaled by 320 / the projection's x so they
+stand as at 4:3 (indices 11 and 12).
+
 A and B need no data, C the toolkit (deps/xboxrecomp), D game/default.xbe,
 E the generated C in src/game/recomp/gen. Missing data prints SKIP.
 F needs no data: main.c and the launcher name the same aspects as aspect.ASPECTS.
@@ -48,7 +53,17 @@ EXPECT = [
     (0x0007C61D,) + P, (0x000904A2,) + P, (0x000904D0,) + P,
     (0x00089454,) + K, (0x0008CC6D,) + K,
     (0x0008CE1F,) + M, (0x0008CF9D,) + M, (0x0008CED1,) + M,
+    (0x00032AC1, 0x3F800000, 0x3FAAAAAB, 0x3F99999A),   # port only: character, bar
+    (0x00032EC0, 0x3F800000, 0x3FAAAAAB, 0x3F99999A),   # port only: item models
 ]
+
+
+# What the hook gives at the two port sites, literally (C and E compare whole lines)
+MOVSS_11 = ('MEMF(esp + 0x14) = xmm0.f[0] * XMM_SCALAR_BITS(g_fbos_aspect_site[11]).f[0]; '
+            '/* movss: UI model x placement x 320/projection x */')
+MOV_12 = ('{ RecompXmm _fbos_x = XMM_SCALAR_BITS(MEM32(esp + 0x34)); '
+          '_fbos_x.f[0] *= XMM_SCALAR_BITS(g_fbos_aspect_site[12]).f[0]; eax = _fbos_x.u[0]; } '
+          '/* mov: UI model x placement x 320/projection x */')
 
 
 def f32(u):
@@ -62,8 +77,16 @@ check(got == EXPECT, 'hook VAs and the three value sets',
 check(abs(f32(0x43855555) / 320 - 5 / 6) < 1e-7, 'projection at 16:10 is 5/6 of 320')
 check(abs(f32(0x43CEAAAB) / 496 - 5 / 6) < 1e-7, 'matrix at 16:10 is 5/6 of 496')
 check(abs(f32(0x3FCCCCCD) - 1.6) < 1e-6, 'camera at 16:10 is 1.6')
-check([aspect.value_at(s[1], s[3], 16, 9) for s in aspect.SITES] == [e[2] for e in EXPECT],
+check([aspect.value_at(s[1], s[3], 16, 9) for s in aspect.SITES[:11]] == [e[2] for e in EXPECT[:11]],
       "the rule gives Nemesis2000's 16:9 bytes")
+for i, a in enumerate(aspect.ASPECTS):
+    for j in (11, 12):
+        k_p = f32(aspect.SITES[j][3 + i]) * f32(aspect.SITES[0][3 + i])
+        check(abs(k_p - 320) < 1e-3, f'site {j} at {a[0]}: k x projection x = 320', str(k_p))
+check(aspect.SITES[11][3] == aspect.SITES[12][3] == 0x3F800000, 'k at 4:3 is exactly 1.0')
+check(len(ws.SITES) == 11 and not {0x32AC1, 0x32EC0} & {s[0] for s in ws.SITES},
+      'widescreen.py keeps its 11 places, the port sites are not among them')
+check(aspect.N == 13 and aspect.N_WS == 11, 'N = 13, N_WS = 11', f'{aspect.N}, {aspect.N_WS}')
 check([a[0] for a in aspect.ASPECTS] == ['4:3', '16:9', '16:10'], 'ASPECTS order')
 check(aspect.ASPECTS[aspect.DEFAULT][0] == '16:9', 'the default aspect is 16:9')
 check(abs(f32(0x43700000) / f32(0x43A00000) - 0.75) < 1e-9, 'projection 240/320 = 3/4')
@@ -112,7 +135,7 @@ if lifter:
         return cls().lift_instruction(decode(raw, va))
 
     raw = bytes.fromhex('680000A043')
-    want = ['extern uint32_t g_fbos_aspect_site[11]; '
+    want = ['extern uint32_t g_fbos_aspect_site[13]; '
             '/* tools/aspect.py: FBOS_ASPECT picks the value */',
             'PUSH32(esp, g_fbos_aspect_site[0]); /* push 0x43A00000 at 4:3 */']
     check(lift(Hooked, raw, 0x3292A) == want, 'push at 0x3292A reads the table',
@@ -123,8 +146,18 @@ if lifter:
     r = lift(Hooked, bytes.fromhex('F30F114C2450'), 0x8CE1F)
     check(len(r) == 2 and r[1].startswith('MEM32(esp + 0x50) = g_fbos_aspect_site[8];'),
           'movss m00 at 0x8CE1F reads the table', str(r))
+    r = lift(Hooked, bytes.fromhex('F30F11442414'), 0x32AC1)
+    check(r == [want[0], MOVSS_11], 'movss x at 0x32AC1 is scaled by site 11', str(r))
+    r = lift(Hooked, bytes.fromhex('8B442434'), 0x32EC0)
+    check(r == [want[0], MOV_12], 'mov x at 0x32EC0 is scaled by site 12', str(r))
+    for braw, va in ((bytes.fromhex('F30F11442414'), 0x32AC1), (bytes.fromhex('8B442434'), 0x32EC0)):
+        r = lift(lifter.Lifter, braw, va)
+        check(not any('g_fbos_aspect_site' in x for x in r),
+              f'the plain lifter at 0x{va:X} has no table read', str(r))
     for braw, va, what in ((bytes.fromhex('6800007043'), 0x3292A, 'push of another value'),
-                           (bytes.fromhex('C74424700000F843'), 0x8CED1, 'mov instead of movss')):
+                           (bytes.fromhex('C74424700000F843'), 0x8CED1, 'mov instead of movss'),
+                           (bytes.fromhex('F30F114C2414'), 0x32AC1, 'movss of xmm1 at 0x32AC1'),
+                           (bytes.fromhex('8B4C2434'), 0x32EC0, 'mov to ecx at 0x32EC0')):
         try:
             lift(Hooked, braw, va)
             check(False, f'refused: {what}')
@@ -132,7 +165,8 @@ if lifter:
             check(True, f'refused: {what}')
     check(lift(Hooked, raw, 0x32900) == lift(lifter.Lifter, raw, 0x32900),
           'an address outside the table lifts as before')
-    check(hits[0] > 0 and hits[8] > 0, 'hits counted', str(dict(hits)))
+    check(hits[0] > 0 and hits[8] > 0 and hits[11] > 0 and hits[12] > 0, 'hits counted',
+          str(dict(hits)))
 
 print('D: neutral XBE')
 xbe = os.path.join(ROOT, 'game', 'default.xbe')
@@ -156,6 +190,10 @@ else:
         check(False, 'a damaged site is refused')
     except ValueError:
         check(True, 'a damaged site is refused')
+    for va, want_b in ((0x32AC1, 'F30F11442414'), (0x32EC0, '8B442434')):
+        off = ws.file_offset(n169, va)
+        got_b = n169[off:off + len(want_b) // 2].hex().upper()
+        check(got_b == want_b, f'neutral image at 0x{va:X} holds {want_b}', got_b)
     if lifter:
         for i, s in enumerate(aspect.SITES):
             off = ws.file_offset(n169, s[0])
@@ -175,7 +213,8 @@ else:
     with open(tab, 'rb') as f:
         check(f.read().decode('ascii') == aspect.table_c(), 'recomp_fbos_aspect.c is the table')
     funcs = {'sub_00032860': (0, 1, 2), 'sub_0007C580': (3,), 'sub_000903B0': (4, 5),
-             'sub_00089440': (6,), 'sub_0008CC60': (7,), 'sub_0008CC90': (8, 9, 10)}
+             'sub_00089440': (6,), 'sub_0008CC60': (7,), 'sub_0008CC90': (8, 9, 10),
+             'sub_00032A70': (11,), 'sub_00032DB0': (12,)}
     bodies = {}
     for fn in sorted(os.listdir(gen)):
         if re.match(r'recomp_\d+\.c$', fn):
@@ -195,6 +234,13 @@ else:
         lit = [x for x in ('0x43700000', '0x3FE38E39', '0x3FAA3D71', '0x43BA0000',
                            '0x43855555', '0x3FCCCCCD', '0x43CEAAAB') if x in code]
         check(not lit, f'{name} has no 16:9 / 16:10 / camera literals', str(lit))
+    for name, line in (('sub_00032A70', MOVSS_11), ('sub_00032DB0', MOV_12)):
+        b = bodies.get(name) or ''
+        check(line in [x.strip() for x in b.split('\n')],
+              f'{name} scales the model x by the table (the whole line)', line)
+        code = re.sub(r'/\*.*?\*/', '', b, flags=re.S)
+        lit = [x for x in ('0x3FAAAAAB', '0x3F99999A') if x in code]
+        check(not lit, f'{name} has no k literals', str(lit))
 
 print('F: main.c and the launcher name the same aspects as aspect.ASPECTS')
 mainc = os.path.join(ROOT, 'src', 'game', 'main.c')

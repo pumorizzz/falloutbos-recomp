@@ -158,6 +158,15 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
   and the game reaches control sooner (16.0 s from start against 20.3).
 
 ### Fixed (GPU rendering and play)
+- Inventory at 16:9 and 16:10: the right panel's 3D view (the character and
+  the bar behind them) stood left of its place at 4:3 (about 17 % of the
+  panel's width at 16:9, 11 % at 16:10), and the item models in the list were
+  pulled towards the screen's centre. The widescreen projection squeezed their
+  x placement along with the models. `tools/aspect.py` now scales that
+  placement by 320 / the projection's x (4/3 at 16:9, 1.2 at 16:10, 1 at 4:3) at two port-only sites
+  (0x32AC1, 0x32EC0): they stand as at 4:3 and on the PS2 and keep the
+  widescreen proportions. `widescreen.py apply` (Nemesis2000's patch for an
+  Xbox) is unchanged and keeps the offset.
 - A crash on the first Bink movie when the frame rate was uncapped (`RECOMP_FPS_LIMIT=0`), and stray `[ICALL] … is not code` lines at 60 fps, both right after the pad connects: XInput's capability query waited on an event built on its stack, the wait failed at once, and the USB interrupt later wrote the request's completion into whatever frame had replaced it. A KEVENT on a guest stack is now a real event, and a USB control transfer completes in a few milliseconds instead of up to 62 (toolkit).
 - `Play.cmd` hitched for about 80 ms every 10 s: the pushbuffer executor
   printed its periodic report into the console line by line (~90 console
