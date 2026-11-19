@@ -157,7 +157,7 @@ your `game\` -- in Russian with the movie subtitles by default (`-Lang ru`:
 `tools\russian.py apply` on the copy; `-Lang en` the original) -- and an empty
 `saves\` (`-WithSaves` copies your saves and settings, `saves\UDATA\49500008`, and
 nothing else -- the game makes its disk images itself). `-Scale 2` renders at 2x, `-Pdb` adds the
-symbols for `FBOS_PROFILE`. Your own `game\` is never written. The folder is a
+symbols for `FBOS_PROFILE` (`fobos.pdb`, `fobos.map`). Your own `game\` is never written. The folder is a
 personal copy of your game data for your own device; `dist\` is not in git.
 
 On the Deck the game's logic runs at 60 whatever the Performance frame limit
@@ -249,6 +249,9 @@ environment.
 | `RECOMP_FRAME_SKIP=auto` \| `1` \| `0` | frame skip (toolkit): the game flips every 1/60 s -- the Tutorial charge needs that step -- and only some frames are shown; a frame not shown is not drawn. `auto` (`bin\fobos.exe` sets it on the GPU path when unset): shown at the cadence of `RECOMP_FPS_LIMIT` and only when the swapchain can take a frame without waiting, so an outside limit (Steam Deck, NVIDIA's Max Frame Rate, RTSS) drops frames instead of slowing the game; `1`: the cadence alone; `0`: off. 30 shows every other frame; 50, 45 and 40 alternate (45: 1-1-2) and judder a little. With `auto` the swapchain holds up to 2 frames (`RECOMP_GPU_RASTER_FRAME_LATENCY=1`-`3`): at 1 a heavy frame (6x5 + MSAA 2) missed the next flip in a window and was skipped with no limit at all |
 | `fobos.ini` | beside `fobos.exe` or in the folder with `game\`: `NAME=VALUE` lines (`;` a comment) for the variables above, set only when the environment has not set them; `log=<file>` sends the game's messages there when nothing else catches them. The Steam Deck kit carries one (below); `bin\` has none |
 | `RECOMP_VSH_THREADS=<n>` | threads for vertex programs (default: half the logical processors, at most 16) |
+| `RECOMP_VSH_MIN_PARALLEL=<n>` | a batch with more than `n` unique vertices to run is shared out over those threads (default 64; `256` was the old cut-off) |
+| `RECOMP_GPU_RASTER_EPOCH=method` | the GPU path ends its "guest memory unchanged" epoch at every pushbuffer method that drains the executor, as before; unset: only where the game can see the GPU's progress (the semaphore, NOP 5, reports, flips, the end of a kick) |
+| `RECOMP_GPU_RASTER_EPOCH_VERIFY=1` | diagnostics: counts a texture or render target the CPU changed inside an epoch (`stale ...` in the `[GPURAST] epochs` line); 0 across the Tutorial, Ruby's bar and the route to the trader |
 | `RECOMP_KEYBOARD=1` | keyboard as player 1 |
 | `RECOMP_PAD_RECORD=<file>` | F8 records pad 1 into the file, F10 plays it back (time is kept in frames, so it needs `RECOMP_PB_EXEC`) |
 | `RECOMP_PAD_SCRIPT="ms:button,..."` | scripted presses for headless runs, e.g. `25000:start,35000:a` |
@@ -260,7 +263,10 @@ dumps shown frames from the GPU path, `RECOMP_GPU_RASTER_PRESENT_HZ=<n>` acts ou
 an outside frame limit of n Hz for `RECOMP_FRAME_SKIP=auto`, and
 `FBOS_PROFILE=<start>,<secs>` samples every thread (it prints `name @
 module+0xRVA`; `py -3 tools/prof_resolve.py <fobos.log> --exe <fobos.exe>`
-names the addresses from `fobos.pdb` on the PC). `RECOMP_GPU_RASTER_RC_STATS=1`
+names the addresses on the PC from `fobos.pdb` and `fobos.map` beside the exe,
+and prints a table of the busiest functions for every busy thread). The GPU path
+prints every 10 s `[GPU] executor: ... ms work a flip`, what the executor's CPU
+thread costs. `RECOMP_GPU_RASTER_RC_STATS=1`
 lists every register-combiner state with its draws and pixels (a state
 missing from `config/gpu_rc_keys.txt` is also logged as `combiner state with
 no shader of its own`: paste the line into the file and rebuild),

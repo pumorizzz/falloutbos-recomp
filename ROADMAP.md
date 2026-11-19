@@ -56,9 +56,19 @@
   game itself runs below 60 whatever frame skip does. Seen on the Deck
   (2026-11-19): heavy Tutorial scenes at 30-40 flips a second with the GPU at
   ~2.5 ms; the executor's thread does ~0.42 of the vertex transform (its share
-  plus the 23 % not split across threads), then `memcmp`/`memset`/hashing. The
-  next task: spread the transform evenly, find those copies (or no transform
-  for a skipped frame, at the price of an exact replay).
+  plus the 23 % not split across threads), then `memcmp`/`memset`/hashing.
+  Stage 5 (2026-11-19) spread the small batches over the helper threads, made
+  the back end's vertex conversion once per vertex, cleared the triangle record
+  only for the software path, hashed in four chains and ended the epoch only
+  where the game can see the GPU (`[GPU] executor:` reports the cost); on a PC
+  imitating the Deck the bar's executor work went 9.4 -> 7.0-7.3 ms a flip;
+  on the Deck the whole Tutorial holds 60 (one window of 55 below 58 fps, executor
+  9.0 ms a flip, ~15.8 before). Open: Carbon drops to 30 when the camera pulls
+  away after a dialogue (the Matron, the raiders, Ruby, Jesse; up to 25 ms of
+  executor work). Next candidates if heavy scenes still sit below 60: indexed draws in the D3D11 back end (~1-1.5 ms: unique vertices and
+  indices instead of a triangle list), `fetch_attr` only for the inputs the
+  program reads (~0.4 ms), no transform for a skipped frame (at the price of an
+  exact replay).
 - RTSS, and probably NVIDIA's Max Frame Rate, sleep inside Present: the
   waitable sees a free buffer, Present then blocks the executor, and the game
   slows as without frame skip. Measure with each; the fallback is a second

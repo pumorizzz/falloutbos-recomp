@@ -5,6 +5,54 @@ Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
 
 ## [Unreleased]
 
+### Changed (the executor's CPU, stage 5, 2026-11-19)
+- The CPU thread that runs the game's pushbuffer is what held heavy Tutorial
+  scenes on the Steam Deck at 30-40 fps (the GPU ~2.5 ms of the frame). Five
+  changes in the toolkit, each bit for bit (the tests of `nv2a_vsh_threads` and
+  `nv2a_gpu_backend` on WARP, the boot route on both paths):
+  - the vertex-program cut-off is `RECOMP_VSH_MIN_PARALLEL` (64, was a fixed
+    256) with an adaptive chunk: the batches of 65-256 vertices, a quarter of
+    the runs, are shared out too;
+  - what the GPU path gets for a vertex is made once per unique vertex on the
+    thread that ran its program, and a triangle copies it;
+  - the 360-byte triangle record is cleared only on the software rasteriser's path;
+  - the texture hash runs four chains (it hashed 0.8 ms a frame on the Deck);
+  - the GPU path's "guest memory is unchanged" epoch ends only where the game can
+    see the GPU's progress (the semaphore, NOP 5, reports, flips, the end of a
+    kick), not at every NOP, WAIT_FOR_IDLE, surface change or clear: ~19 epochs
+    a flip at the bar against ~240.
+  PC, executor work a flip (`[GPU] executor:`): at the bar imitating the Deck
+  (four threads, 4C/8T affinity) 9.4-9.55 -> 7.0-7.3 ms, on the full PC 9.2 ->
+  5.4-5.8, on the route to the trader (Deck imitation) 2.75 -> 2.25, in a Tutorial
+  played by hand (Deck imitation) 5.87 -> 5.76 for the epoch rule alone (the
+  busiest 10 s window 7.20 -> 7.00); every window at 58 or more. On a Steam Deck
+  (2026-11-19, the whole Tutorial): 10 s windows below 58 fps 25 of 55 -> 1 of 55
+  (the start-up one), executor work 9.0 ms a flip (p90 12.4, the busiest 13.6)
+  against ~15.8 before; the executor's thread 71 % busy at 60 fps (59 % at 30-44
+  before). Carbon still drops to 30 when the camera pulls away after a dialogue
+  (up to 25 ms of executor work): open.
+- The epoch rule and the 64 are checked on Fallout: BoS only. A texture or
+  target the CPU changed inside an epoch is counted with
+  `RECOMP_GPU_RASTER_EPOCH_VERIFY=1` (0 at the bar, on the route and across the
+  whole Tutorial); `RECOMP_GPU_RASTER_EPOCH=method` puts the old rule back.
+
+### Added (executor report, stage 5, 2026-11-19)
+- `[GPU] executor: ... ms work a flip ...` every 10 s: the executor thread's
+  time in scans minus the flip's wait, the vertex runs it did itself, the batch
+  sizes, why the back end was synced and the scans that ended without a
+  semaphore or marker; and `[GPURAST] epochs ...`: epochs by cause, bytes
+  compared and hashed, `stale ...` of the verify mode. `[GPU] ... fps` is as before.
+- `RECOMP_VSH_MIN_PARALLEL`, `RECOMP_GPU_RASTER_EPOCH=method`,
+  `RECOMP_GPU_RASTER_EPOCH_VERIFY=1` (README, `docs/technical/pushbuffer-executor.md`).
+
+### Fixed (profiler names, stage 5, 2026-11-19)
+- `tools\prof_resolve.py` names the toolkit's static functions: it reads
+  `fobos.map` beside the exe (`--map`; a map of another build is exit 2, none
+  is a warning) and prints, for every thread that is busy 5 % or more, its 20
+  busiest functions with the object file (`xf_to_backend [nv2a_pb_exec]`).
+  `package.ps1 -Pdb` puts `fobos.map` in the kit. This closes the "Known gap"
+  of the profiler entry below.
+
 ### Fixed (talk prompt names in English, 2026-11-18)
 - Jesse and Richard in Carbon showed only "Talk to" on the English text. The
   prompt hands the name's address to the text routine as a float, which rounds
