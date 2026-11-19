@@ -23,7 +23,7 @@
 #                        settings.dat -- and TDATA\49500008); not the HDD
 #                        images Partition*.img (sparse here, 5 GB copied; the
 #                        game makes them itself) nor pad recordings
-#   fobos.pdb            with -Pdb (for FBOS_PROFILE on the Deck)
+#   fobos.pdb, fobos.map with -Pdb (for FBOS_PROFILE on the Deck: prof_resolve.py names by the map)
 # Then the exe's imports, the folder's size and the exe's SHA-256.
 #
 # This is a personal copy of your own game data for your own device: nothing
@@ -165,7 +165,7 @@ Say ("  game:          $gameSrc, {0:N2} GB" -f ($bytes / 1GB))
 Say "  language:      $Lang$(if ($Lang -eq 'ru') { ' (tools\russian.py apply on the copy: text, fonts, XBE strings, movie subtitles)' })"
 Say "  scale:         ${Scale}x, MSAA 2x, 1280x800 16:10, frame skip auto"
 Say "  saves:         $(if ($WithSaves) { 'your saves: ' + (($SaveDirs | ForEach-Object { "saves\$_" }) -join ', ') } else { 'empty' })"
-Say "  pdb:           $(if ($Pdb) { 'yes' } else { 'no' })"
+Say "  pdb:           $(if ($Pdb) { 'yes (fobos.pdb, fobos.map)' } else { 'no' })"
 Say "  A personal copy of your own game data for your own device; nothing is uploaded."
 
 if ($DryRun) {
@@ -193,7 +193,10 @@ if (-not (Test-Path $Exe)) { Fail "no $Exe after the build" }
 # ---- the folder --------------------------------------------------------------
 New-Item -ItemType Directory -Force $Out | Out-Null
 Copy-Item $Exe (Join-Path $Out 'fobos.exe') -Force
-if ($Pdb) { Copy-Item (Join-Path $Build 'dist-bin\fobos.pdb') (Join-Path $Out 'fobos.pdb') -Force }
+if ($Pdb) {
+    Copy-Item (Join-Path $Build 'dist-bin\fobos.pdb') (Join-Path $Out 'fobos.pdb') -Force
+    Copy-Item (Join-Path $Build 'dist-bin\fobos.map') (Join-Path $Out 'fobos.map') -Force
+}
 $ini = (Get-Content (Join-Path $Deck 'fobos.ini')) -replace '^RECOMP_GPU_RASTER_SCALE=.*$', "RECOMP_GPU_RASTER_SCALE=$Scale"
 Set-Content (Join-Path $Out 'fobos.ini') $ini -Encoding ascii
 Copy-Item (Join-Path $Deck 'README-SteamDeck.txt') (Join-Path $Out 'README-SteamDeck.txt') -Force

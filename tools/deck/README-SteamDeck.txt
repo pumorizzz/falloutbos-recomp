@@ -11,7 +11,7 @@ What is inside
   game\                your game files
   saves\               saves (an empty folder, or your saves and settings:
                        saves\UDATA\49500008); the game adds the rest itself
-  fobos.pdb            only with package.ps1 -Pdb: symbols for FBOS_PROFILE
+  fobos.pdb, fobos.map only with package.ps1 -Pdb: symbols for FBOS_PROFILE
 
 Install
   1. Copy the whole folder to the Deck, e.g. to ~/Games/fbos-deck/
@@ -39,7 +39,9 @@ Frame rate
 The log
   fobos.log in this folder, written anew at every start (the previous one is
   kept as fobos.prev.log). Useful lines: "[GPU] ... fps (... flips, shown ...)",
-  "[GPURAST] ... frame skip: ...", "FAULT". If the game does not start at all:
+  "[GPU] executor: ... ms work a flip" (what the CPU thread that runs the
+  game's graphics costs; under 16 ms is what 60 needs), "[GPURAST] ... frame
+  skip: ...", "FAULT". If the game does not start at all:
   Launch Options  PROTON_LOG=1 %command%  writes ~/steam-<appid>.log.
 
 Changing a setting
@@ -50,7 +52,9 @@ Changing a setting
                                              if the game stays at 60)
     RECOMP_GPU_RASTER_MSAA=4 %command%       smoother edges, more GPU time
     FBOS_PROFILE=60,20 %command%             a CPU profile into fobos.log
-                                             (needs fobos.pdb: package.ps1 -Pdb);
-                                             it prints name @ module+0xRVA --
-                                             on the PC: py -3 tools\prof_resolve.py
+                                             (needs fobos.pdb and fobos.map:
+                                             package.ps1 -Pdb); it prints
+                                             name @ module+0xRVA -- on the PC,
+                                             with the .map beside the exe:
+                                             py -3 tools\prof_resolve.py
                                              fobos.log --exe fobos.exe

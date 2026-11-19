@@ -1,6 +1,7 @@
-"""Name the functions of a FBOS_PROFILE log on a PC, against fobos.pdb.
+"""Name the functions of a FBOS_PROFILE log on a PC, against fobos.pdb and fobos.map.
 
-    py -3 -I tools/prof_resolve.py <fobos.log> --exe <path to fobos.exe>   (the pdb beside it)
+    py -3 -I tools/prof_resolve.py <fobos.log> --exe <path to fobos.exe> [--map <fobos.map>]
+    (the pdb and, by default, fobos.map beside the exe)
 
 FBOS_PROFILE=<start>,<secs> samples every thread's RIP and prints the top functions.
 Each line ends in module+RVA of the function (the unwind table's start; `~` = no unwind
@@ -12,9 +13,19 @@ same build, so here the pdb of that build names them all.
 The log's `[PROF] image` line (time stamp, size, CodeView GUID and age of the exe that ran)
 is checked against --exe and the pdb dbghelp loads for it; a different build is an error
 (exit 2) rather than wrong names. The summary: functions over all threads, threads (with
-the function each started in), other modules apart; waits left out as the profiler
+the function each started in, and for every thread at least 5% busy its top 20 functions
+as a share of its busy samples), other modules apart; waits left out as the profiler
 does. For `sub_XXXXXXXX` the guest address is the hex part. Windows only (dbghelp).
+
+The names of fobos.exe's functions come from the linker map (`fobos.map`, beside the exe or
+--map; packaged with package.ps1 -Pdb): dbghelp's pdb has only the public symbols, so a
+static function of the toolkit (`xf_to_backend`, `vsh_worker`, `hash_bytes`) came out
+under the nearest public name before it. The map's `Timestamp is` must equal the exe's and
+the log's, else exit 2 (`the map is from another build`). Every sample is placed in the map
+symbol that contains its RVA, so the fragments of one function (chained .pdata entries) are
+one row; `[obj]` is the object file. Without a map the pdb names are used and a warning says so.
 """
+import bisect
 import ctypes
 import os
 import re
@@ -167,6 +178,58 @@ class Pdb:
         return None
 
 
+# ---- the linker map -----------------------------------------------------------------
+
+MAPSYM = re.compile(r"^\s*([0-9a-f]{4}):([0-9a-f]{8})\s+(\S+)\s+([0-9a-f]{16})\s+(?:(f)\s+)?(?:(i)\s+)?(\S.*)?$")
+
+
+class LinkMap:
+    """Symbols of .text from the `Publics by Value` and `Static symbols` lists of fobos.map."""
+
+    def __init__(self, path):
+        self.stamp = None
+        syms = {}
+        section = None
+        with open(path, encoding="latin-1") as f:
+            for line in f:
+                if self.stamp is None:
+                    m = re.search(r"Timestamp is ([0-9a-fA-F]+)", line)
+                    if m:
+                        self.stamp = int(m.group(1), 16)
+                if "Publics by Value" in line:
+                    section = "pub"
+                    continue
+                if "Static symbols" in line:
+                    section = "static"
+                    continue
+                if section is None:
+                    continue
+                m = MAPSYM.match(line)
+                if not m or m.group(1) != "0001":
+                    continue
+                rva = int(m.group(4), 16) - Pdb.BASE
+                if rva <= 0:
+                    continue
+                name, obj = m.group(3), (m.group(7) or "").strip()
+                prev = syms.get(rva)
+                # several names at one RVA: keep the first, but a function-flagged one wins
+                if prev is None or (not prev[2] and m.group(5)):
+                    syms[rva] = (name, obj, bool(m.group(5)))
+        self.syms = syms
+        self.rvas = sorted(syms)
+
+    def label(self, rva):
+        """`name [object]` of the symbol at or before the RVA; None before the first."""
+        k = bisect.bisect_right(self.rvas, rva) - 1
+        if k < 0:
+            return None
+        name, obj, _ = self.syms[self.rvas[k]]
+        obj = obj.split(":")[-1]
+        if obj.lower().endswith(".obj"):
+            obj = obj[:-4]
+        return "%s [%s]" % (name, obj) if obj else name
+
+
 # ---- the log -------------------------------------------------------------------------
 
 IMAGE = re.compile(r"\[PROF\] image (\S+) base 0x([0-9A-Fa-f]+) size 0x([0-9A-Fa-f]+) "
@@ -206,8 +269,14 @@ def is_wait(name):
     return any(w in name for w in WAITS)
 
 
-def resolve(text, exe):
-    """(exit code, report text)."""
+def find_map(exe, map_path=None):
+    """The map to use: --map, else <exe without .exe>.map; None if there is none."""
+    path = map_path or os.path.splitext(os.path.abspath(exe))[0] + ".map"
+    return path if os.path.isfile(path) else None
+
+
+def resolve(text, exe, map_path=None):
+    """(exit code, report text). map_path: --map; None = beside the exe; "" = pdb names only."""
     img, rows, threads, total = parse(text)
     if img is None:
         return 2, "no `[PROF] image` line in the log: it is from a build without module+RVA\n"
@@ -223,14 +292,29 @@ def resolve(text, exe):
         bad.append("CodeView: log %s, exe %s" % (img["pdb"], pdb))
     if bad:
         return 2, ("the log is from another build than %s:\n  %s\n" % (exe, "\n  ".join(bad)))
+    lmap, note = None, ""
+    if map_path != "":
+        mp = find_map(exe, map_path)
+        if mp is None:
+            if map_path:
+                return 2, "no map at %s\n" % map_path
+            note = ("no fobos.map beside the exe: the toolkit's static functions come out "
+                    "under the nearest public name\n")
+        else:
+            lmap = LinkMap(mp)
+            if lmap.stamp != stamp or lmap.stamp != img["time"]:
+                return 2, ("the map is from another build than %s: time stamp: map %s, exe 0x%X, "
+                           "log 0x%X\n" % (exe, "none" if lmap.stamp is None else "0x%X" % lmap.stamp,
+                                           stamp, img["time"]))
     sym = Pdb(exe)
     try:
-        return _resolve(sym, img, rows, threads, total, exe)
+        code, out = _resolve(sym, img, rows, threads, total, exe, lmap)
+        return code, (note + out if code == 0 else out)
     finally:
         sym.close()
 
 
-def _resolve(sym, img, rows, threads, total, exe):
+def _resolve(sym, img, rows, threads, total, exe, lmap=None):
     loaded = sym.pdb_text()
     if loaded is None:
         return 2, "no fobos.pdb found beside %s\n" % exe
@@ -239,11 +323,20 @@ def _resolve(sym, img, rows, threads, total, exe):
 
     exe_name = img["name"].lower()
     funcs, foreign, fnames = {}, {}, {}
+
+    def name_of(rva):
+        if lmap is not None:
+            nm = lmap.label(rva)
+            if nm:
+                return nm
+        return sym.name_at(rva)[0]
+
     for r in rows:
         if r["mod"].lower() == exe_name:
-            nm, disp = sym.name_at(r["rva"])
-            nm = nm or "?"
-            if r["approx"]:
+            nm = name_of(r["rva"]) or "?"
+            # with the map the fragments of one function are one row; the rva of a `~` row is
+            # only rounded down, which the symbol containing it absorbs
+            if r["approx"] and lmap is None:
                 nm += " (~, no unwind entry)"
             key = nm
             tgt = funcs
@@ -271,24 +364,32 @@ def _resolve(sym, img, rows, threads, total, exe):
         if th["mod"] is None:
             start = "? (the thread had ended)"
         elif th["mod"].lower() == exe_name:
-            start = sym.name_at(th["rva"])[0] or "fobos.exe+0x%X" % th["rva"]
+            start = name_of(th["rva"]) or "fobos.exe+0x%X" % th["rva"]
         else:
             start = "%s+0x%X" % (th["mod"], th["rva"])
-        top = sorted(fnames.get(th["tid"], {}).items(), key=lambda kv: -kv[1])[:3]
+        pct = 100 * th["busy"] // max(th["n"], 1)
+        # a thread at least 5% busy: its top 20 functions as a share of ITS busy samples
+        top = sorted(fnames.get(th["tid"], {}).items(), key=lambda kv: -kv[1])[:20 if pct >= 5 else 3]
         out.append("  tid %5d  %7d samples  %7d busy (%3d%%)  start %s\n" % (
-            th["tid"], th["n"], th["busy"], 100 * th["busy"] // max(th["n"], 1), start))
+            th["tid"], th["n"], th["busy"], pct, start))
         for k, n in top:
-            out.append("              %5.1f%% of the thread  %s\n" % (100.0 * n / max(th["n"], 1), k))
+            m = re.match(r"sub_([0-9A-Fa-f]{8})", k)
+            out.append("              %5.1f%% of busy  %6d  %s%s\n" % (
+                100.0 * n / max(th["busy"], 1), n, k, "  (guest 0x%s)" % m.group(1) if m else ""))
     return 0, "".join(out)
 
 
 def main(argv):
     exe = None
+    map_path = None
     args = []
     i = 0
     while i < len(argv):
         if argv[i] == "--exe" and i + 1 < len(argv):
             exe = argv[i + 1]
+            i += 2
+        elif argv[i] == "--map" and i + 1 < len(argv):
+            map_path = argv[i + 1]
             i += 2
         else:
             args.append(argv[i])
@@ -297,7 +398,7 @@ def main(argv):
         print(__doc__)
         return 1
     with open(args[0], encoding="utf-8", errors="replace") as f:
-        code, text = resolve(f.read(), exe)
+        code, text = resolve(f.read(), exe, map_path)
     sys.stdout.write(text)
     return code
 
